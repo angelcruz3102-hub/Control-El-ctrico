@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control Eléctrico</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background: #f4f6f8; 
+            color: #333;
+            -webkit-tap-highlight-color: transparent;
+        }
+        header { 
+            background: #2c3e50; 
+            color: white; 
+            padding: 16px; 
+            text-align: center; 
+            font-size: 20px; 
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        nav { 
+            display: flex; 
+            background: #34495e; 
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        nav button { 
+            flex: 1; 
+            padding: 14px; 
+            background: none; 
+            border: none; 
+            color: #ecf0f1; 
+            font-size: 15px; 
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        nav button.active {
+            border-bottom: 3px solid #3498db;
+            color: white;
+        }
+        .view { 
+            display: none; 
+            padding: 20px; 
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .view.active { display: block; }
+        .card { 
+            background: white; 
+            padding: 16px; 
+            margin-bottom: 16px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+        }
+        input:not([type="checkbox"]) { 
+            width: 100%; 
+            padding: 12px; 
+            margin-top: 8px; 
+            margin-bottom: 16px;
+            box-sizing: border-box; 
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        input:focus { outline: none; border-color: #3498db; }
+        button.btn { 
+            width: 100%; 
+            padding: 14px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin-bottom: 10px;
+        }
+        button.primary { background: #3498db; color: white; }
+        button.danger { background: #e74c3c; color: white; }
+        button.secondary { background: #ecf0f1; color: #333; }
+        label { font-weight: 600; font-size: 14px; color: #555; }
+        
+        .flex-row { display: flex; align-items: center; justify-content: space-between; }
+        .flex-row button { width: 48%; margin-bottom: 0; }
+        .checkbox-container { display: flex; align-items: center; margin-bottom: 16px; }
+        .checkbox-container input[type="checkbox"] { width: 24px; height: 24px; margin-right: 12px; }
+        
+        #spinner { 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.8); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 9999; 
+        }
+        #spinner.hidden { display: none !important; }
+        .loader { 
+            border: 6px solid #f3f3f3; 
+            border-top: 6px solid #3498db; 
+            border-radius: 50%; 
+            width: 50px; height: 50px; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <header>Control Eléctrico</header>
+    <nav>
+        <button id="nav-dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
+        <button id="nav-wizard" onclick="showView('wizard')">Nueva Lectura</button>
+        <button id="nav-ficha" onclick="showView('ficha')">Ficha Técnica</button>
+    </nav>
+
+    <div id="spinner">
+        <div class="loader"></div>
+    </div>
+
+    <!-- VISTA: DASHBOARD -->
+    <div id="dashboard" class="view active">
+        <div class="card">
+            <h3 style="margin-top:0;">Consumo Histórico (kWh)</h3>
+            <div class="chart-container">
+                <canvas id="chart-historico"></canvas>
+            </div>
+        </div>
+        <div class="card" id="card-desglose">
+            <h3 style="margin-top:0;">Desglose del Último Registro</h3>
+            <div class="chart-container">
+                <canvas id="chart-desglose"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- VISTA: WIZARD NUEVA LECTURA -->
+    <div id="wizard" class="view">
+        <div id="step1" class="card">
+            <h3 style="margin-top:0;">Paso 1: Lectura del Contador</h3>
+            <label>Lectura Actual (kWh):</label>
+            <input type="number" id="wizard-lectura" step="0.01" placeholder="Ej. 14500.50">
+            <button class="btn primary" onclick="wizardStep2()">Siguiente</button>
+        </div>
+
+        <div id="step2" class="card hidden">
+            <h3 style="margin-top:0;">Paso 2: Aparatos Activos</h3>
+            <p style="font-size:14px; color:#666;">Selecciona los aparatos que consumieron energía desde la última lectura.</p>
+            <div id="wizard-aparatos-list"></div>
+            <div class="flex-row" style="margin-top:20px;">
+                <button class="btn secondary" onclick="resetWizard()">Atrás</button>
+                <button class="btn primary" onclick="wizardStep3()">Siguiente</button>
+            </div>
+        </div>
+
+        <div id="step3" class="card hidden">
+            <h3 style="margin-top:0;">Paso 3: Asignación de Horas</h3>
+            <div id="wizard-horas-list"></div>
+            <div class="flex-row" style="margin-top:20px;">
+                <button class="btn secondary" onclick="wizardStep2()">Atrás</button>
+                <button class="btn primary" onclick="finishWizard()">Finalizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VISTA: FICHA TÉCNICA -->
+    <div id="ficha" class="view">
+        <button class="btn primary" onclick="showAparatoForm()">+ Añadir Aparato</button>
+        
+        <div id="aparato-form" class="card hidden">
+            <h3 style="margin-top:0;" id="form-title">Nuevo Aparato</h3>
+            <input type="hidden" id="aparato-id">
+            <label>Nombre:</label> 
+            <input type="text" id="aparato-nombre" placeholder="Ej. Aire Acondicionado">
+            <label>Consumo (Vatios - W):</label> 
+            <input type="number" id="aparato-vatios" placeholder="Ej. 1200">
+            <label>Horas Máximas Estimadas (entre lecturas):</label> 
+            <input type="number" id="aparato-horasMax" placeholder="Ej. 24">
+            
+            <div class="flex-row">
+                <button class="btn secondary" onclick="hideAparatoForm()">Cancelar</button>
+                <button class="btn primary" onclick="saveAparato()">Guardar</button>
+            </div>
+        </div>
+
+        <div id="aparatos-list"></div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec';
+        
+        let aparatos = [];
+        let historial = [];
+        let chartHistorico = null;
+        let chartDesglose = null;
+
+        document.addEventListener("DOMContentLoaded", init);
+
+        async function init() {
+            await loadData();
+        }
+
+        function showSpinner() { document.getElementById('spinner').classList.remove('hidden'); }
+        function hideSpinner() { document.getElementById('spinner').classList.add('hidden'); }
+
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(viewId).classList.add('active');
+            document.getElementById(`nav-${viewId}`).classList.add('active');
+            
+            if (viewId === 'dashboard') renderCharts();
+            if (viewId === 'ficha') renderFicha();
+            if (viewId === 'wizard') resetWizard();
+        }
+
+        async function apiCall(action, method = 'GET', data = null) {
+            showSpinner();
+            try {
+                let url = SCRIPT_URL;
+                let options = { method: method, redirect: 'follow' };
+                
+                if (method === 'GET') {
+                    url += `?action=${action}`;
+                } else {
+                    options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+                    data.action = action;
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(url, options);
+                const result = await response.json();
+                hideSpinner();
+                
+                if (result.error) throw new Error(result.error);
+                return result;
+            } catch (e) {
+                hideSpinner();
+                alert("Error de conexión: " + e.message);
+                throw e;
+            }
+        }
+
+        async function loadData() {
+            try {
+                const [resDash, resAp] = await Promise.all([
+                    apiCall('getDashboard'),
+                    apiCall('getAparatos')
+                ]);
+                historial = resDash.historial || [];
+                aparatos = resAp.aparatos || [];
+                renderCharts();
+            } catch (e) {
+                console.error("Error cargando datos", e);
+            }
+        }
+
+        function renderCharts() {
+            const ctxHist = document.getElementById('chart-historico').getContext('2d');
+            const ctxDesglose = document.getElementById('chart-desglose').getContext('2d');
+            
+            if (chartHistorico) chartHistorico.destroy();
+            if (chartDesglose) chartDesglose.destroy();
+            
+            const labels = [];
+            const consumos = [];
+            
+            for (let i = 1; i < historial.length; i++) {
+                labels.push(new Date(historial[i].fecha).toLocaleDateString());
+                consumos.push((historial[i].lectura - historial[i-1].lectura).toFixed(2));
+            }
+            
+            if (historial.length === 1) {
+                labels.push(new Date(historial[0].fecha).toLocaleDateString());
+                consumos.push(0);
+            }
+
+            chartHistorico = new Chart(ctxHist, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{ 
+                        label: 'Consumo kWh', 
+                        data: consumos, 
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+            
+            if (historial.length > 0) {
+                document.getElementById('card-desglose').style.display = 'block';
+                const last = historial[historial.length - 1];
+                const desglose = last.desglose || {};
+                const desLabels = Object.keys(desglose);
+                const desData = Object.values(desglose);
+                
+                chartDesglose = new Chart(ctxDesglose, {
+                    type: 'doughnut',
+                    data: {
+                        labels: desLabels,
+                        datasets: [{ 
+                            data: desData,
+                            backgroundColor: ['#e74c3c', '#8e44ad', '#3498db', '#e67e22', '#2ecc71', '#f1c40f', '#1abc9c']
+                        }]
+                    },
+                    options: { maintainAspectRatio: false }
+                });
+            } else {
+                document.getElementById('card-desglose').style.display = 'none';
+            }
+        }
+
+        function renderFicha() {
+            const list = document.getElementById('aparatos-list');
+            list.innerHTML = '';
+            aparatos.forEach(a => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div style="margin-bottom:10px;">
+                        <strong style="font-size:18px;">${a.nombre}</strong><br>
+                        <span style="color:#666;">${a.vatios}W | ${a.horasMax}h máx estimadas</span>
+                    </div>
+                    <div class="flex-row">
+                        <button class="btn secondary" onclick='editAparato(${JSON.stringify(a)})'>Editar</button>
+                        <button class="btn danger" onclick="deleteAparato('${a.id}')">Eliminar</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function showAparatoForm() {
+            document.getElementById('form-title').innerText = 'Nuevo Aparato';
+            document.getElementById('aparato-id').value = 'AP-' + Date.now();
+            document.getElementById('aparato-nombre').value = '';
+            document.getElementById('aparato-vatios').value = '';
+            document.getElementById('aparato-horasMax').value = '';
+            document.getElementById('aparato-form').classList.remove('hidden');
+            document.getElementById('aparato-form').scrollIntoView();
+        }
+
+        function editAparato(a) {
+            document.getElementById('form-title').innerText = 'Editar Aparato';
+            document.getElementById('aparato-id').value = a.id;
+            document.getElementById('aparato-nombre').value = a.nombre;
+            document.getElementById('aparato-vatios').value = a.vatios;
+            document.getElementById('aparato-horasMax').value = a.horasMax;
+            document.getElementById('aparato-form').classList.remove('hidden');
+            document.getElementById('aparato-form').scrollIntoView();
+        }
+
+        function hideAparatoForm() { 
+            document.getElementById('aparato-form').classList.add('hidden'); 
+        }
+
+        async function saveAparato() {
+            const nombre = document.getElementById('aparato-nombre').value;
+            const vatios = document.getElementById('aparato-vatios').value;
+            const horasMax = document.getElementById('aparato-horasMax').value;
+            
+            if (!nombre || !vatios || !horasMax) return alert("Completa todos los campos");
+
+            const ap = {
+                id: document.getElementById('aparato-id').value,
+                nombre: nombre,
+                vatios: vatios,
+                horasMax: horasMax
+            };
+            
+            await apiCall('saveAparato', 'POST', { aparato: ap });
+            hideAparatoForm();
+            await loadData();
+            renderFicha();
+        }
+
+        async function deleteAparato(id) {
+            if (confirm("¿Estás seguro de eliminar este aparato?")) {
+                await apiCall('deleteAparato', 'POST', { id: id });
+                await loadData();
+                renderFicha();
+            }
+        }
+
+        function resetWizard() {
+            document.getElementById('step1').classList.remove('hidden');
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.add('hidden');
+            document.getElementById('wizard-lectura').value = '';
+        }
+
+        function wizardStep2() {
+            const lectura = document.getElementById('wizard-lectura').value;
+            if (!lectura) return alert("Ingresa la lectura actual del contador");
+            
+            if (historial.length > 0) {
+                const lastLectura = parseFloat(historial[historial.length - 1].lectura);
+                if (parseFloat(lectura) <= lastLectura) {
+                    return alert("La lectura debe ser mayor a la última registrada: " + lastLectura);
+                }
+            }
+            
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            
+            const list = document.getElementById('wizard-aparatos-list');
+            list.innerHTML = '';
+            aparatos.forEach(a => {
+                list.innerHTML += `
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="chk-${a.id}" value="${a.id}" class="wizard-cb">
+                        <label for="chk-${a.id}" style="font-size:16px;">${a.nombre} (${a.vatios}W)</label>
+                    </div>
+                    <hr style="border:0; border-top:1px solid #eee;">
+                `;
+            });
+        }
+
+        function wizardStep3() {
+            const selected = Array.from(document.querySelectorAll('.wizard-cb:checked')).map(cb => cb.value);
+            if (selected.length === 0) return alert("Selecciona al menos un aparato activo");
+            
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.remove('hidden');
+            
+            const list = document.getElementById('wizard-horas-list');
+            list.innerHTML = '';
+            selected.forEach(id => {
+                const a = aparatos.find(ap => ap.id === id);
+                list.innerHTML += `
+                    <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                        <h4 style="margin:0 0 10px 0; color:#2c3e50;">${a.nombre}</h4>
+                        <label>Horas de uso:</label>
+                        <input type="number" id="hours-${a.id}" step="0.5" value="${a.horasMax}">
+                        <div class="checkbox-container" style="margin-bottom:0;">
+                            <input type="checkbox" id="nose-${a.id}" onchange="document.getElementById('hours-${a.id}').disabled = this.checked">
+                            <label for="nose-${a.id}">No sé las horas (Usar estimación máxima)</label>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        async function finishWizard() {
+            const lectura = parseFloat(document.getElementById('wizard-lectura').value);
+            const selected = Array.from(document.querySelectorAll('.wizard-cb:checked')).map(cb => cb.value);
+            
+            const desglose = {};
+            let consumoTeoricoTotal = 0;
+            
+            selected.forEach(id => {
+                const a = aparatos.find(ap => ap.id === id);
+                const nose = document.getElementById(`nose-${id}`).checked;
+                const horas = nose ? parseFloat(a.horasMax) : parseFloat(document.getElementById(`hours-${id}`).value || 0);
+                
+                const consumoTeorico = (parseFloat(a.vatios) * horas) / 1000;
+                consumoTeoricoTotal += consumoTeorico;
+                desglose[a.nombre] = consumoTeorico;
+            });
+            
+            let consumoReal = 0;
+            if (historial.length > 0) {
+                const lastLectura = parseFloat(historial[historial.length - 1].lectura);
+                consumoReal = lectura - lastLectura;
+            } else {
+                consumoReal = consumoTeoricoTotal; 
+            }
+            
+            const factor = consumoTeoricoTotal > 0 ? (consumoReal / consumoTeoricoTotal) : 1;
+            for (let key in desglose) {
+                desglose[key] = parseFloat((desglose[key] * factor).toFixed(2));
+            }
+            
+            await apiCall('saveLectura', 'POST', { lectura: lectura, desglose: desglose });
+            await loadData();
+            showView('dashboard');
+        }
+    </script>
+</body>
+</html>
