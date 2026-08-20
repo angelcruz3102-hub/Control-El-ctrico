@@ -54,7 +54,7 @@
     <header>Control Eléctrico</header>
     <nav>
         <button id="nav-dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
-        <button id="nav-wizard" onclick="showView('wizard')">Nueva Lectura</button>
+        <button id="nav-wizard" onclick="showView('wizard')">Lectura</button>
         <button id="nav-ficha" onclick="showView('ficha')">Ficha Técnica</button>
     </nav>
 
@@ -64,24 +64,24 @@
 
     <!-- VISTA: DASHBOARD -->
     <div id="dashboard" class="view active">
-        <div class="flex-row" style="margin-bottom:15px;" id="filtros-container">
+        <div class="flex-row" style="margin-bottom:15px;">
             <select id="dash-mode" style="width:48%; margin:0;">
-                <option value="mes">Mes (Día a Día)</option>
-                <option value="ano">Año (Mes a Mes)</option>
+                <option value="mes">Mensual</option>
+                <option value="ano">Anual</option>
             </select>
             <select id="dash-selector" style="width:48%; margin:0;"></select>
         </div>
 
         <div class="card" id="card-historico" style="display:none;">
-            <h3 style="margin-top:0;">Consumo Histórico (kWh)</h3>
-            <p style="font-size:12px; color:#666;">Toca un punto en la gráfica para ver su desglose detallado.</p>
+            <h3 style="margin-top:0;">Consumo (kWh)</h3>
+            <p style="font-size:12px; color:#666;">Toca un punto para ver detalles de ese lapso.</p>
             <div class="chart-container">
                 <canvas id="chart-historico"></canvas>
             </div>
         </div>
 
         <div class="card" id="card-desglose" style="display:none;">
-            <h3 style="margin-top:0;" id="titulo-desglose">Desglose Detallado</h3>
+            <h3 style="margin-top:0;" id="titulo-desglose">Desglose</h3>
             <div class="chart-container">
                 <canvas id="chart-desglose"></canvas>
             </div>
@@ -91,7 +91,7 @@
                         <tr>
                             <th>Aparato</th>
                             <th>Tipo</th>
-                            <th>Tiempo</th>
+                            <th>H/M</th>
                             <th>kWh</th>
                         </tr>
                     </thead>
@@ -105,20 +105,22 @@
     <div id="wizard" class="view">
         <div id="step1" class="card">
             <h3 style="margin-top:0;">Paso 1: Lectura General</h3>
-            <label>Lectura Actual (kWh):</label>
+            <label>Lectura Actual del Contador (kWh):</label>
             <input type="number" id="wizard-lectura" step="0.01" placeholder="Ej. 14500.50">
             
-            <div class="checkbox-container" style="background:#f9f9f9; padding:10px; border-radius:8px;">
+            <div class="checkbox-container" style="background:#f9f9f9; padding:12px; border-radius:8px;">
                 <input type="checkbox" id="wizard-casa-sola">
-                <label for="wizard-casa-sola" style="margin:0;">¿La casa estuvo deshabitada? <br><small style="font-weight:normal; color:#777;">(Asume consumo base cero)</small></label>
+                <label for="wizard-casa-sola" style="margin:0; width:100%;">¿La casa estuvo deshabitada / viaje?<br>
+                <small style="color:#777; font-weight:normal;">(Omite aparatos ocasionales)</small></label>
             </div>
             <button class="btn primary" onclick="wizardStep2()">Siguiente</button>
         </div>
 
         <div id="step2" class="card hidden">
-            <h3 style="margin-top:0;">Paso 2: Aparatos Ocasionales</h3>
-            <p style="font-size:14px; color:#666;">Registra el tiempo de uso de los aparatos encendidos puntualmente. El saldo se prorrateará entre los aparatos "Fijos".</p>
-            <div id="wizard-ocasionales"></div>
+            <h3 style="margin-top:0;" id="step2-title">Paso 2</h3>
+            <p style="font-size:14px; color:#666;" id="step2-desc"></p>
+            
+            <div id="wizard-aparatos"></div>
             
             <div class="flex-row" style="margin-top:20px;">
                 <button class="btn secondary" onclick="resetWizard()">Atrás</button>
@@ -144,7 +146,7 @@
             <label>Tipo de Consumo:</label>
             <select id="aparato-tipo">
                 <option value="Fijo">Fijo (Consumo Base / Continuo)</option>
-                <option value="Ocasional">Ocasional (Encendido Puntual)</option>
+                <option value="Ocasional">Ocasional (Uso Puntual)</option>
             </select>
             
             <label>Horas Promedio (al día):</label> 
@@ -212,7 +214,6 @@
                 return result;
             } catch (error) {
                 hideSpinner();
-                console.error(`Error ${method}:`, error);
                 alert(`Error de conexión al ${method === 'GET' ? 'cargar datos' : 'guardar'}.`);
                 throw error;
             }
@@ -302,13 +303,13 @@
                 data: {
                     labels: labels,
                     datasets: [{ 
-                        label: 'Consumo kWh', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2
+                        label: 'Consumo (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2
                     }]
                 },
                 options: { 
                     maintainAspectRatio: false,
                     onClick: (e, activeElements) => {
-                        if(activeElements.length > 0) {
+                        if (activeElements.length > 0) {
                             const idx = activeElements[0].index;
                             renderDetail(currentFilteredData[idx].originalRecords, currentFilteredData[idx].label);
                         }
@@ -449,92 +450,141 @@
             
             if (historial.length > 0) {
                 const last = parseFloat(historial[historial.length - 1].lectura);
-                if (parseFloat(lectura) < last) return alert("La lectura no puede ser menor a la anterior (" + last + ")");
+                if (parseFloat(lectura) < last) return alert(`La lectura no puede ser menor a la anterior (${last})`);
             }
+            
+            const casaSola = document.getElementById('wizard-casa-sola').checked;
             
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             
-            const container = document.getElementById('wizard-ocasionales');
+            document.getElementById('step2-title').innerText = casaSola ? 'Paso 2: Aparatos Fijos' : 'Paso 2: Aparatos Ocasionales';
+            document.getElementById('step2-desc').innerText = casaSola 
+                ? 'Desmarca los aparatos fijos que desconectaste antes del viaje.' 
+                : 'Registra el tiempo exacto de uso de los aparatos encendidos puntualmente durante este lapso.';
+            
+            const container = document.getElementById('wizard-aparatos');
             container.innerHTML = '';
             
-            const ocasionales = aparatos.filter(a => a.tipo === 'Ocasional');
-            if (ocasionales.length === 0) {
-                container.innerHTML = '<p style="color:#666;">No hay aparatos ocasionales. Pulsa Guardar para procesar el consumo fijo.</p>';
-                return;
-            }
-            
-            ocasionales.forEach(a => {
-                container.innerHTML += `
-                    <div style="background:#fff; border:1px solid #eee; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <div class="flex-row">
+            if (casaSola) {
+                const fijos = aparatos.filter(a => a.tipo === 'Fijo');
+                if (fijos.length === 0) {
+                    container.innerHTML = '<p style="color:#666;">No hay aparatos fijos. Pulsa Guardar.</p>';
+                    return;
+                }
+                fijos.forEach(a => {
+                    container.innerHTML += `
+                        <div style="background:#fff; border:1px solid #eee; padding:14px; border-radius:8px; margin-bottom:10px;" class="flex-row">
                             <label for="chk-${a.id}" style="font-size:16px; margin:0;">${a.nombre} <span style="color:#888;font-weight:normal;">(${a.vatios}W)</span></label>
-                            <input type="checkbox" id="chk-${a.id}" style="width:24px;height:24px;" onchange="document.getElementById('cfg-${a.id}').style.display = this.checked ? 'flex' : 'none'">
+                            <input type="checkbox" id="chk-${a.id}" class="wizard-fijo-chk" value="${a.id}" checked style="width:24px;height:24px;">
                         </div>
-                        <div id="cfg-${a.id}" class="flex-row" style="margin-top:12px; display:none;">
-                            <input type="number" id="time-${a.id}" placeholder="Tiempo" style="width:58%; margin:0;">
-                            <select id="unit-${a.id}" style="width:38%; margin:0;">
-                                <option value="Horas">Horas</option>
-                                <option value="Minutos">Minutos</option>
-                            </select>
+                    `;
+                });
+            } else {
+                const ocasionales = aparatos.filter(a => a.tipo === 'Ocasional');
+                if (ocasionales.length === 0) {
+                    container.innerHTML = '<p style="color:#666;">No hay aparatos ocasionales. Pulsa Guardar.</p>';
+                    return;
+                }
+                ocasionales.forEach(a => {
+                    container.innerHTML += `
+                        <div style="background:#fff; border:1px solid #eee; padding:12px; border-radius:8px; margin-bottom:10px;">
+                            <div class="flex-row">
+                                <label for="chk-${a.id}" style="font-size:16px; margin:0;">${a.nombre} <span style="color:#888;font-weight:normal;">(${a.vatios}W)</span></label>
+                                <input type="checkbox" id="chk-${a.id}" class="wizard-oca-chk" value="${a.id}" onchange="document.getElementById('cfg-${a.id}').style.display = this.checked ? 'flex' : 'none'" style="width:24px;height:24px;">
+                            </div>
+                            <div id="cfg-${a.id}" class="flex-row" style="margin-top:12px; display:none;">
+                                <input type="number" id="time-${a.id}" placeholder="Tiempo Total" style="width:58%; margin:0;">
+                                <select id="unit-${a.id}" style="width:38%; margin:0;">
+                                    <option value="Horas">Horas</option>
+                                    <option value="Minutos">Minutos</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                `;
-            });
+                    `;
+                });
+            }
         }
 
         async function finishWizard() {
             const lectura = parseFloat(document.getElementById('wizard-lectura').value);
             const casaSola = document.getElementById('wizard-casa-sola').checked;
             
-            let lastLectura = historial.length > 0 ? parseFloat(historial[historial.length-1].lectura) : lectura;
-            let delta = lectura - lastLectura;
+            let lastLectura = lectura;
+            let elapsedDays = 1; 
             
-            let totalOcasional = 0;
+            if (historial.length > 0) {
+                const lastRec = historial[historial.length - 1];
+                lastLectura = parseFloat(lastRec.lectura);
+                const ms = Date.now() - new Date(lastRec.fecha).getTime();
+                elapsedDays = Math.max(ms / (1000 * 60 * 60 * 24), 0.01);
+            }
+            
+            let delta = lectura - lastLectura;
             let desglose = {};
             
-            aparatos.filter(a => a.tipo === 'Ocasional').forEach(a => {
-                const chk = document.getElementById(`chk-${a.id}`);
-                if (chk && chk.checked) {
-                    const time = parseFloat(document.getElementById(`time-${a.id}`).value || 0);
-                    const unit = document.getElementById(`unit-${a.id}`).value;
+            if (casaSola) {
+                // RUTA B
+                let activeFijosIds = Array.from(document.querySelectorAll('.wizard-fijo-chk:checked')).map(cb => cb.value);
+                let fijos = aparatos.filter(a => a.tipo === 'Fijo' && activeFijosIds.includes(a.id));
+                
+                let totalWeight = fijos.reduce((sum, a) => sum + (parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays), 0);
+                
+                fijos.forEach(a => {
+                    let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays;
+                    let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
+                    let kwh = delta * factor;
+                    let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
+                    desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
+                });
+                
+                if (fijos.length === 0 && delta > 0) {
+                    desglose['unknown'] = { nombre: 'Desviación / No Identificado', tipo: '-', tiempo: 0, unidad: '-', consumo: delta };
+                }
+            } else {
+                // RUTA A
+                let totalOcasional = 0;
+                let activeOcaIds = Array.from(document.querySelectorAll('.wizard-oca-chk:checked')).map(cb => cb.value);
+                
+                activeOcaIds.forEach(id => {
+                    const a = aparatos.find(ap => ap.id === id);
+                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0);
+                    const unit = document.getElementById(`unit-${id}`).value;
                     const h = unit === 'Minutos' ? time / 60 : time;
                     const kwh = (parseFloat(a.vatios) * h) / 1000;
                     
                     totalOcasional += kwh;
                     desglose[a.id] = { nombre: a.nombre, tipo: 'Ocasional', tiempo: time, unidad: unit, consumo: kwh };
-                }
-            });
-            
-            let remainder = delta - totalOcasional;
-            
-            if (remainder < 0) {
-                if (totalOcasional > 0) {
-                    let scale = delta / totalOcasional;
-                    for(let id in desglose) {
-                        desglose[id].consumo *= scale;
-                        desglose[id].tiempo *= scale;
-                    }
-                }
-                remainder = 0;
-            }
-            
-            if (!casaSola && remainder > 0) {
-                let fijos = aparatos.filter(a => a.tipo === 'Fijo');
-                let totalWeight = fijos.reduce((sum, a) => sum + (parseFloat(a.vatios) * parseFloat(a.horasPromedio)), 0);
-                
-                fijos.forEach(a => {
-                    let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio);
-                    let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
-                    let kwh = remainder * factor;
-                    desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: parseFloat(a.horasPromedio), unidad: 'h', consumo: kwh };
                 });
                 
-                if (fijos.length === 0) {
-                    desglose['unknown'] = { nombre: 'Consumo Base (No Identificado)', tipo: 'Fijo', tiempo: 24, unidad: 'h', consumo: remainder };
+                let remainder = delta - totalOcasional;
+                if (remainder < 0) {
+                    if (totalOcasional > 0) {
+                        let scale = delta / totalOcasional;
+                        for (let id in desglose) {
+                            desglose[id].consumo *= scale;
+                            desglose[id].tiempo *= scale;
+                        }
+                    }
+                    remainder = 0;
                 }
-            } else if (casaSola && remainder > 0) {
-                desglose['unknown'] = { nombre: 'Desviación / No Identificado', tipo: '-', tiempo: 0, unidad: '-', consumo: remainder };
+                
+                if (remainder > 0) {
+                    let fijos = aparatos.filter(a => a.tipo === 'Fijo');
+                    let totalWeight = fijos.reduce((sum, a) => sum + (parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays), 0);
+                    
+                    fijos.forEach(a => {
+                        let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays;
+                        let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
+                        let kwh = remainder * factor;
+                        let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
+                        desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
+                    });
+                    
+                    if (fijos.length === 0) {
+                        desglose['unknown'] = { nombre: 'Consumo Base (No Identificado)', tipo: 'Fijo', tiempo: 24 * elapsedDays, unidad: 'h', consumo: remainder };
+                    }
+                }
             }
             
             await apiCall('saveLectura', 'POST', { lectura, delta, casaSola, desglose });
