@@ -126,7 +126,6 @@
         <div class="loader"></div>
     </div>
 
-    <!-- VISTA: DASHBOARD -->
     <div id="dashboard" class="view active">
         <div class="card">
             <h3 style="margin-top:0;">Consumo Histórico (kWh)</h3>
@@ -142,7 +141,6 @@
         </div>
     </div>
 
-    <!-- VISTA: WIZARD NUEVA LECTURA -->
     <div id="wizard" class="view">
         <div id="step1" class="card">
             <h3 style="margin-top:0;">Paso 1: Lectura del Contador</h3>
@@ -171,7 +169,6 @@
         </div>
     </div>
 
-    <!-- VISTA: FICHA TÉCNICA -->
     <div id="ficha" class="view">
         <button class="btn primary" onclick="showAparatoForm()">+ Añadir Aparato</button>
         
@@ -195,7 +192,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec';
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec";
         
         let aparatos = [];
         let historial = [];
@@ -223,38 +220,50 @@
             if (viewId === 'wizard') resetWizard();
         }
 
+        // Estructura de peticiones Fetch unificada según los requerimientos de CORS/GAS
         async function apiCall(action, method = 'GET', data = null) {
             showSpinner();
             try {
-                let url = SCRIPT_URL;
-                let options = { method: method, redirect: 'follow' };
+                let response;
                 
                 if (method === 'GET') {
-                    url += `?action=${action}`;
+                    // 1. Petición GET (Para cargar el Dashboard y Aparatos)
+                    response = await fetch(`${GAS_URL}?action=${action}`, {
+                        method: "GET",
+                        redirect: "follow" // Obligatorio para evitar fallos de redirección de Google
+                    });
                 } else {
-                    options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+                    // 2. Petición POST (Para enviar nueva lectura o registrar aparato)
                     data.action = action;
-                    options.body = JSON.stringify(data);
+                    response = await fetch(GAS_URL, {
+                        method: "POST",
+                        redirect: "follow", // Obligatorio
+                        headers: {
+                            "Content-Type": "text/plain;charset=utf-8", // Obligatorio: evita el bloqueo CORS (Preflight OPTIONS)
+                        },
+                        body: JSON.stringify(data)
+                    });
                 }
                 
-                const response = await fetch(url, options);
                 const result = await response.json();
                 hideSpinner();
                 
                 if (result.error) throw new Error(result.error);
                 return result;
-            } catch (e) {
+                
+            } catch (error) {
                 hideSpinner();
-                alert("Error de conexión: " + e.message);
-                throw e;
+                console.error(`Error ${method}:`, error);
+                alert(`Error de conexión al ${method === 'GET' ? 'cargar datos' : 'guardar'}.`);
+                throw error;
             }
         }
 
         async function loadData() {
             try {
                 const [resDash, resAp] = await Promise.all([
-                    apiCall('getDashboard'),
-                    apiCall('getAparatos')
+                    apiCall('getDashboard', 'GET'),
+                    apiCall('getAparatos', 'GET')
                 ]);
                 historial = resDash.historial || [];
                 aparatos = resAp.aparatos || [];
