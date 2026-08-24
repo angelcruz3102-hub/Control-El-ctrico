@@ -6,10 +6,7 @@
     <title>Control Eléctrico</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            margin: 0; padding: 0; background: #f4f6f8; color: #333; -webkit-tap-highlight-color: transparent;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #f4f6f8; color: #333; -webkit-tap-highlight-color: transparent; }
         header { background: #2c3e50; color: white; padding: 16px; text-align: center; font-size: 20px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         nav { display: flex; background: #34495e; position: sticky; top: 0; z-index: 100; }
         nav button { flex: 1; padding: 14px; background: none; border: none; color: #ecf0f1; font-size: 15px; font-weight: 500; cursor: pointer; border-bottom: 3px solid transparent; }
@@ -17,35 +14,26 @@
         .view { display: none; padding: 20px; max-width: 800px; margin: 0 auto; }
         .view.active { display: block; }
         .card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        
-        input[type="number"], input[type="text"], select { 
-            width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; box-sizing: border-box; font-size: 16px; border: 1px solid #ccc; border-radius: 8px;
-        }
+        input[type="number"], input[type="text"], select { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; box-sizing: border-box; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; }
         input:focus, select:focus { outline: none; border-color: #3498db; }
-        
         button.btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 10px; }
         button.primary { background: #3498db; color: white; }
         button.danger { background: #e74c3c; color: white; }
         button.secondary { background: #ecf0f1; color: #333; }
-        
         label { font-weight: 600; font-size: 14px; color: #555; }
         .flex-row { display: flex; align-items: center; justify-content: space-between; }
         .flex-row button { width: 48%; margin-bottom: 0; }
-        
         .checkbox-container { display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px; }
         .checkbox-container input[type="checkbox"] { width: 24px; height: 24px; margin-right: 12px; }
-        
         .table-container { overflow-x: auto; margin-top: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         table { width: 100%; min-width: 350px; border-collapse: collapse; background: white; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
         th { background: #34495e; color: white; font-weight: 500; }
         tr:last-child td { border-bottom: none; }
-        
         #spinner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
         #spinner.hidden { display: none !important; }
         .loader { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
         .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 20px; }
     </style>
 </head>
@@ -74,7 +62,7 @@
 
         <div class="card" id="card-historico" style="display:none;">
             <h3 style="margin-top:0;">Consumo (kWh)</h3>
-            <p style="font-size:12px; color:#666;">Toca un punto para ver detalles de ese lapso.</p>
+            <p style="font-size:12px; color:#666;">Toca un punto para ver detalles del lapso.</p>
             <div class="chart-container">
                 <canvas id="chart-historico"></canvas>
             </div>
@@ -110,8 +98,8 @@
             
             <div class="checkbox-container" style="background:#f9f9f9; padding:12px; border-radius:8px;">
                 <input type="checkbox" id="wizard-casa-sola">
-                <label for="wizard-casa-sola" style="margin:0; width:100%;">¿La casa estuvo deshabitada / viaje?<br>
-                <small style="color:#777; font-weight:normal;">(Omite aparatos ocasionales)</small></label>
+                <label for="wizard-casa-sola" style="margin:0; width:100%;">¿La casa estuvo deshabitada?<br>
+                <small style="color:#777; font-weight:normal;">(Omite consumo ocasional activo)</small></label>
             </div>
             <button class="btn primary" onclick="wizardStep2()">Siguiente</button>
         </div>
@@ -119,9 +107,7 @@
         <div id="step2" class="card hidden">
             <h3 style="margin-top:0;" id="step2-title">Paso 2</h3>
             <p style="font-size:14px; color:#666;" id="step2-desc"></p>
-            
             <div id="wizard-aparatos"></div>
-            
             <div class="flex-row" style="margin-top:20px;">
                 <button class="btn secondary" onclick="resetWizard()">Atrás</button>
                 <button class="btn primary" onclick="finishWizard()">Guardar Lectura</button>
@@ -136,19 +122,15 @@
         <div id="aparato-form" class="card hidden">
             <h3 style="margin-top:0;" id="form-title">Nuevo Aparato</h3>
             <input type="hidden" id="aparato-id">
-            
             <label>Nombre:</label> 
-            <input type="text" id="aparato-nombre" placeholder="Ej. Lavadora">
-            
+            <input type="text" id="aparato-nombre" placeholder="Ej. Nevera">
             <label>Consumo (Vatios - W):</label> 
-            <input type="number" id="aparato-vatios" placeholder="Ej. 1200">
-            
+            <input type="number" id="aparato-vatios" placeholder="Ej. 150">
             <label>Tipo de Consumo:</label>
             <select id="aparato-tipo">
                 <option value="Fijo">Fijo (Consumo Base / Continuo)</option>
                 <option value="Ocasional">Ocasional (Uso Puntual)</option>
             </select>
-            
             <label>Horas Promedio (al día):</label> 
             <input type="number" id="aparato-horasMax" step="0.1" placeholder="Ej. 24">
             
@@ -162,7 +144,8 @@
     </div>
 
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec";
+        // ¡NO OLVIDES REEMPLAZAR ESTA URL CON LA TUYA DE GOOGLE APPS SCRIPT!
+        const GAS_URL = "PEGA_AQUI_LA_NUEVA_URL_DE_APPS_SCRIPT";
         
         let aparatos = [];
         let historial = [];
@@ -225,8 +208,11 @@
                     apiCall('getDashboard', 'GET'),
                     apiCall('getAparatos', 'GET')
                 ]);
-                historial = resDash.historial || [];
+                
+                // Orden cronológico para evitar bugs de 'lastLectura'
+                historial = (resDash.historial || []).sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
                 aparatos = resAp.aparatos || [];
+                
                 initFilters();
                 renderCharts();
             } catch (e) {}
@@ -288,7 +274,9 @@
                 let key = mode === 'mes' ? d.getDate() + ' ' + d.toLocaleString('es-ES', {month:'short'}) : d.toLocaleString('es-ES', {month:'long'});
                 
                 if (!grouped[key]) grouped[key] = { label: key, delta: 0, originalRecords: [], ms: d.getTime() };
-                grouped[key].delta += h.delta;
+                
+                // parseFloat evita concatenaciones si el sheet entrega texto ("20"+"30"="2030")
+                grouped[key].delta += parseFloat(h.delta);
                 grouped[key].originalRecords.push(h);
             });
             
@@ -303,7 +291,7 @@
                 data: {
                     labels: labels,
                     datasets: [{ 
-                        label: 'Consumo (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2
+                        label: 'Consumo Total (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2
                     }]
                 },
                 options: { 
@@ -378,7 +366,7 @@
                         <div style="margin-bottom:10px;">
                             <strong style="font-size:18px;">${a.nombre}</strong> 
                             <span style="background:${badgeColor}; color:white; padding:2px 8px; border-radius:12px; font-size:12px; margin-left:8px;">${a.tipo}</span>
-                            <br><span style="color:#666;">${a.vatios}W | ${a.horasPromedio}h prom.</span>
+                            <br><span style="color:#666;">${a.vatios}W | ${a.horasPromedio}h prom. diario</span>
                         </div>
                         <div class="flex-row">
                             <button class="btn secondary" onclick='editAparato(${JSON.stringify(a)})'>Editar</button>
@@ -422,7 +410,7 @@
             if (!nombre || !vatios || !horasMax) return alert("Completa todos los campos");
 
             await apiCall('saveAparato', 'POST', {
-                aparato: { id: document.getElementById('aparato-id').value, nombre, vatios, tipo, horasPromedio: horasMax }
+                aparato: { id: document.getElementById('aparato-id').value, nombre, vatios: parseFloat(vatios), tipo, horasPromedio: parseFloat(horasMax) }
             });
             hideAparatoForm();
             await loadData();
@@ -458,10 +446,11 @@
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             
+            // Textos corregidos para clarificar el ingreso TOTAL de tiempo.
             document.getElementById('step2-title').innerText = casaSola ? 'Paso 2: Aparatos Fijos' : 'Paso 2: Aparatos Ocasionales';
             document.getElementById('step2-desc').innerText = casaSola 
-                ? 'Desmarca los aparatos fijos que desconectaste antes del viaje.' 
-                : 'Registra el tiempo exacto de uso de los aparatos encendidos puntualmente durante este lapso.';
+                ? 'Desmarca los aparatos fijos que desconectaste en tu ausencia.' 
+                : 'Ingresa el tiempo TOTAL de uso de estos aparatos desde la última lectura.';
             
             const container = document.getElementById('wizard-aparatos');
             container.innerHTML = '';
@@ -524,7 +513,7 @@
             let desglose = {};
             
             if (casaSola) {
-                // RUTA B
+                // RUTA B: Casa Deshabitada
                 let activeFijosIds = Array.from(document.querySelectorAll('.wizard-fijo-chk:checked')).map(cb => cb.value);
                 let fijos = aparatos.filter(a => a.tipo === 'Fijo' && activeFijosIds.includes(a.id));
                 
@@ -539,25 +528,35 @@
                 });
                 
                 if (fijos.length === 0 && delta > 0) {
-                    desglose['unknown'] = { nombre: 'Desviación / No Identificado', tipo: '-', tiempo: 0, unidad: '-', consumo: delta };
+                    desglose['unknown'] = { nombre: 'Desviación / Fuga', tipo: '-', tiempo: 0, unidad: '-', consumo: delta };
                 }
             } else {
-                // RUTA A
+                // RUTA A: Casa Habitada
                 let totalOcasional = 0;
                 let activeOcaIds = Array.from(document.querySelectorAll('.wizard-oca-chk:checked')).map(cb => cb.value);
                 
                 activeOcaIds.forEach(id => {
                     const a = aparatos.find(ap => ap.id === id);
-                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0);
+                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0); 
                     const unit = document.getElementById(`unit-${id}`).value;
-                    const h = unit === 'Minutos' ? time / 60 : time;
-                    const kwh = (parseFloat(a.vatios) * h) / 1000;
+                    
+                    // ===============================================
+                    // CORRECCIÓN MATEMÁTICA: Ocasionales
+                    // El input del usuario es el TIEMPO TOTAL ABSOLUTO
+                    // usado durante este lapso. NO se debe inflar 
+                    // multiplicándolo por elapsedDays.
+                    // ===============================================
+                    const totalH = unit === 'Minutos' ? time / 60 : time;
+                    const kwh = (parseFloat(a.vatios) * totalH) / 1000;
                     
                     totalOcasional += kwh;
-                    desglose[a.id] = { nombre: a.nombre, tipo: 'Ocasional', tiempo: time, unidad: unit, consumo: kwh };
+                    desglose[a.id] = { nombre: a.nombre, tipo: 'Ocasional', tiempo: totalH, unidad: 'h', consumo: kwh };
                 });
                 
                 let remainder = delta - totalOcasional;
+                
+                // Si el consumo ocasional supera la lectura real del contador,
+                // se escala a la baja para nunca inventar energía fantasma.
                 if (remainder < 0) {
                     if (totalOcasional > 0) {
                         let scale = delta / totalOcasional;
@@ -576,7 +575,7 @@
                     fijos.forEach(a => {
                         let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays;
                         let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
-                        let kwh = remainder * factor;
+                        let kwh = remainder * factor; // Los Fijos se reparten el sobrante real.
                         let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
                         desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
                     });
