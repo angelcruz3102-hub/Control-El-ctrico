@@ -30,11 +30,15 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
         th { background: #34495e; color: white; font-weight: 500; }
         tr:last-child td { border-bottom: none; }
+        tr.row-ajuste td { background: #fff8e1; font-style: italic; }
         #spinner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
         #spinner.hidden { display: none !important; }
         .loader { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 20px; }
+        .summary-bar { display: flex; justify-content: space-around; background: #ecf0f1; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; text-align: center; }
+        .summary-bar div { flex: 1; }
+        .summary-bar .val { font-size: 18px; font-weight: bold; color: #2c3e50; }
     </style>
 </head>
 <body>
@@ -70,6 +74,7 @@
 
         <div class="card" id="card-desglose" style="display:none;">
             <h3 style="margin-top:0;" id="titulo-desglose">Desglose</h3>
+            <div id="summary-container"></div>
             <div class="chart-container">
                 <canvas id="chart-desglose"></canvas>
             </div>
@@ -79,7 +84,7 @@
                         <tr>
                             <th>Aparato</th>
                             <th>Tipo</th>
-                            <th>H/M</th>
+                            <th>Tiempo</th>
                             <th>kWh</th>
                         </tr>
                     </thead>
@@ -93,6 +98,7 @@
     <div id="wizard" class="view">
         <div id="step1" class="card">
             <h3 style="margin-top:0;">Paso 1: Lectura General</h3>
+            <div id="wizard-info" style="background:#eaf6ff; padding:12px; border-radius:8px; margin-bottom:16px; font-size:14px; display:none;"></div>
             <label>Lectura Actual del Contador (kWh):</label>
             <input type="number" id="wizard-lectura" step="0.01" placeholder="Ej. 14500.50">
             
@@ -144,8 +150,7 @@
     </div>
 
     <script>
-        // ¡NO OLVIDES REEMPLAZAR ESTA URL CON LA TUYA DE GOOGLE APPS SCRIPT!
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec";
+        const GAS_URL = "PEGA_AQUI_LA_NUEVA_URL_DE_APPS_SCRIPT";
         
         let aparatos = [];
         let historial = [];
@@ -208,11 +213,8 @@
                     apiCall('getDashboard', 'GET'),
                     apiCall('getAparatos', 'GET')
                 ]);
-                
-                // Orden cronológico para evitar bugs de 'lastLectura'
                 historial = (resDash.historial || []).sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
                 aparatos = resAp.aparatos || [];
-                
                 initFilters();
                 renderCharts();
             } catch (e) {}
@@ -222,9 +224,7 @@
             const mode = document.getElementById('dash-mode').value;
             const selector = document.getElementById('dash-selector');
             selector.innerHTML = '';
-            
             if (historial.length === 0) return;
-            
             let options = new Set();
             historial.forEach(h => {
                 let d = new Date(h.fecha);
@@ -234,7 +234,6 @@
                     options.add(d.getFullYear().toString());
                 }
             });
-            
             Array.from(options).sort().reverse().forEach(opt => {
                 let option = document.createElement('option');
                 option.value = opt;
@@ -255,65 +254,53 @@
                 document.getElementById('card-desglose').style.display = 'none';
                 return;
             }
-            
             document.getElementById('card-historico').style.display = 'block';
             document.getElementById('card-desglose').style.display = 'block';
-
             const mode = document.getElementById('dash-mode').value;
             const selected = document.getElementById('dash-selector').value;
-            
             let filtered = historial.filter(h => {
                 let d = new Date(h.fecha);
                 if (mode === 'mes') return (d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')) === selected;
                 return d.getFullYear().toString() === selected;
             });
-            
             let grouped = {};
             filtered.forEach(h => {
                 let d = new Date(h.fecha);
                 let key = mode === 'mes' ? d.getDate() + ' ' + d.toLocaleString('es-ES', {month:'short'}) : d.toLocaleString('es-ES', {month:'long'});
-                
                 if (!grouped[key]) grouped[key] = { label: key, delta: 0, originalRecords: [], ms: d.getTime() };
-                
-                // parseFloat evita concatenaciones si el sheet entrega texto ("20"+"30"="2030")
                 grouped[key].delta += parseFloat(h.delta);
                 grouped[key].originalRecords.push(h);
             });
-            
             let sortedKeys = Object.keys(grouped).sort((a,b) => grouped[a].ms - grouped[b].ms);
             let labels = sortedKeys.map(k => grouped[k].label);
             let dataValues = sortedKeys.map(k => grouped[k].delta);
             currentFilteredData = sortedKeys.map(k => grouped[k]);
-            
             if (chartHistorico) chartHistorico.destroy();
             chartHistorico = new Chart(document.getElementById('chart-historico').getContext('2d'), {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [{ 
-                        label: 'Consumo Total (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2
-                    }]
+                    datasets: [{ label: 'Consumo Medidor (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2 }]
                 },
                 options: { 
                     maintainAspectRatio: false,
                     onClick: (e, activeElements) => {
                         if (activeElements.length > 0) {
                             const idx = activeElements[0].index;
-                            renderDetail(currentFilteredData[idx].originalRecords, currentFilteredData[idx].label);
+                            renderDetail(currentFilteredData[idx].originalRecords, currentFilteredData[idx].label, currentFilteredData[idx].delta);
                         }
                     }
                 }
             });
-            
             if (currentFilteredData.length > 0) {
                 const last = currentFilteredData[currentFilteredData.length - 1];
-                renderDetail(last.originalRecords, last.label);
+                renderDetail(last.originalRecords, last.label, last.delta);
             } else {
                 document.getElementById('card-desglose').style.display = 'none';
             }
         }
 
-        function renderDetail(records, labelTitle) {
+        function renderDetail(records, labelTitle, totalDelta) {
             document.getElementById('card-desglose').style.display = 'block';
             document.getElementById('titulo-desglose').innerText = `Desglose: ${labelTitle}`;
             
@@ -321,39 +308,83 @@
             records.forEach(r => {
                 let des = r.desglose || {};
                 for (let id in des) {
-                    if (!merged[id]) merged[id] = { nombre: des[id].nombre, tipo: des[id].tipo, tiempo: 0, unidad: des[id].unidad, consumo: 0 };
-                    merged[id].consumo += des[id].consumo;
-                    if (merged[id].unidad === des[id].unidad) merged[id].tiempo += des[id].tiempo;
+                    if (!merged[id]) merged[id] = { nombre: des[id].nombre, tipo: des[id].tipo, tiempo: 0, unidad: des[id].unidad || '-', consumo: 0 };
+                    merged[id].consumo += parseFloat(des[id].consumo) || 0;
+                    if (des[id].tiempo && merged[id].unidad === des[id].unidad) merged[id].tiempo += parseFloat(des[id].tiempo) || 0;
                 }
             });
             
-            let arr = Object.values(merged).sort((a,b) => b.consumo - a.consumo);
+            // Separar aparatos reales de la desviación
+            let aparatosArr = [];
+            let desviacionTotal = 0;
+            for (let id in merged) {
+                if (id === 'desviacion') {
+                    desviacionTotal += merged[id].consumo;
+                } else {
+                    aparatosArr.push(merged[id]);
+                }
+            }
+            aparatosArr.sort((a,b) => b.consumo - a.consumo);
             
+            let totalEstimado = aparatosArr.reduce((s, d) => s + d.consumo, 0);
+            
+            // Barra resumen: Medidor vs Estimado
+            let sumContainer = document.getElementById('summary-container');
+            let pct = totalEstimado > 0 ? ((totalDelta / totalEstimado) * 100).toFixed(0) : '-';
+            let diffLabel = desviacionTotal >= 0 ? 'No Identificado' : 'Ahorro vs Estimado';
+            let diffColor = desviacionTotal >= 0 ? '#e67e22' : '#27ae60';
+            sumContainer.innerHTML = `
+                <div class="summary-bar">
+                    <div>Medidor<br><span class="val">${totalDelta.toFixed(2)}</span><br>kWh</div>
+                    <div>Estimado<br><span class="val">${totalEstimado.toFixed(2)}</span><br>kWh</div>
+                    <div>Diferencia<br><span class="val" style="color:${diffColor}">${desviacionTotal.toFixed(2)}</span><br>kWh</div>
+                </div>
+            `;
+
+            // Gráfica de pastel: solo aparatos con consumo > 0
+            let positiveArr = aparatosArr.filter(d => d.consumo > 0);
             if (chartDesglose) chartDesglose.destroy();
             chartDesglose = new Chart(document.getElementById('chart-desglose').getContext('2d'), {
                 type: 'doughnut',
                 data: {
-                    labels: arr.map(d => d.nombre),
+                    labels: positiveArr.map(d => d.nombre),
                     datasets: [{ 
-                        data: arr.map(d => Math.max(0, d.consumo)), 
-                        backgroundColor: ['#e74c3c','#8e44ad','#3498db','#e67e22','#2ecc71','#f1c40f','#1abc9c'] 
+                        data: positiveArr.map(d => d.consumo), 
+                        backgroundColor: ['#e74c3c','#8e44ad','#3498db','#e67e22','#2ecc71','#f1c40f','#1abc9c','#d35400','#2980b9','#c0392b'] 
                     }]
                 },
                 options: { maintainAspectRatio: false }
             });
             
+            // Tabla: todos los aparatos + fila de desviación
             const tbody = document.getElementById('tabla-desglose-body');
             tbody.innerHTML = '';
-            arr.forEach(d => {
+            aparatosArr.forEach(d => {
                 tbody.innerHTML += `
                     <tr>
                         <td><strong>${d.nombre}</strong></td>
                         <td>${d.tipo}</td>
                         <td>${d.tiempo > 0 ? d.tiempo.toFixed(1) + ' ' + d.unidad : '-'}</td>
                         <td><strong>${d.consumo.toFixed(2)}</strong></td>
-                    </tr>
-                `;
+                    </tr>`;
             });
+            // Fila de desviación del medidor
+            if (Math.abs(desviacionTotal) > 0.01) {
+                let rowColor = desviacionTotal >= 0 ? '#e67e22' : '#27ae60';
+                tbody.innerHTML += `
+                    <tr class="row-ajuste">
+                        <td><strong>${desviacionTotal >= 0 ? '⚡ Consumo No Identificado' : '✅ Ahorro vs Estimado'}</strong></td>
+                        <td>Ajuste</td>
+                        <td>-</td>
+                        <td style="color:${rowColor};"><strong>${desviacionTotal.toFixed(2)}</strong></td>
+                    </tr>`;
+            }
+            // Fila total del medidor
+            tbody.innerHTML += `
+                <tr style="background:#34495e;">
+                    <td colspan="3" style="color:white;"><strong>TOTAL MEDIDOR</strong></td>
+                    <td style="color:white;"><strong>${totalDelta.toFixed(2)}</strong></td>
+                </tr>`;
         }
 
         function renderFicha() {
@@ -372,8 +403,7 @@
                             <button class="btn secondary" onclick='editAparato(${JSON.stringify(a)})'>Editar</button>
                             <button class="btn danger" onclick="deleteAparato('${a.id}')">Eliminar</button>
                         </div>
-                    </div>
-                `;
+                    </div>`;
             });
         }
 
@@ -406,9 +436,7 @@
             const vatios = document.getElementById('aparato-vatios').value;
             const tipo = document.getElementById('aparato-tipo').value;
             const horasMax = document.getElementById('aparato-horasMax').value;
-            
             if (!nombre || !vatios || !horasMax) return alert("Completa todos los campos");
-
             await apiCall('saveAparato', 'POST', {
                 aparato: { id: document.getElementById('aparato-id').value, nombre, vatios: parseFloat(vatios), tipo, horasPromedio: parseFloat(horasMax) }
             });
@@ -430,27 +458,56 @@
             document.getElementById('step2').classList.add('hidden');
             document.getElementById('wizard-lectura').value = '';
             document.getElementById('wizard-casa-sola').checked = false;
+            
+            // Mostrar info de última lectura
+            const infoDiv = document.getElementById('wizard-info');
+            if (historial.length > 0) {
+                const last = historial[historial.length - 1];
+                const lastDate = new Date(last.fecha);
+                const diffMs = Date.now() - lastDate.getTime();
+                const diffDays = (diffMs / (1000 * 60 * 60 * 24)).toFixed(1);
+                const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
+                infoDiv.innerHTML = `📊 <strong>Última lectura:</strong> ${parseFloat(last.lectura).toFixed(2)} kWh<br>📅 <strong>Fecha:</strong> ${lastDate.toLocaleString('es-ES')}<br>⏱️ <strong>Tiempo transcurrido:</strong> ${diffDays} días (${diffHours} horas)`;
+                infoDiv.style.display = 'block';
+            } else {
+                infoDiv.innerHTML = '📌 <strong>Primera lectura:</strong> Esta lectura establecerá la línea base. El cálculo de consumo comenzará a partir de la segunda lectura.';
+                infoDiv.style.display = 'block';
+            }
         }
 
         function wizardStep2() {
             const lectura = document.getElementById('wizard-lectura').value;
             if (!lectura) return alert("Ingresa la lectura actual");
             
-            if (historial.length > 0) {
-                const last = parseFloat(historial[historial.length - 1].lectura);
-                if (parseFloat(lectura) < last) return alert(`La lectura no puede ser menor a la anterior (${last})`);
+            // Primera lectura: solo guardar línea base
+            if (historial.length === 0) {
+                if (confirm(`¿Registrar ${lectura} kWh como lectura inicial (línea base)?`)) {
+                    apiCall('saveLectura', 'POST', { lectura: parseFloat(lectura), delta: 0, casaSola: false, desglose: {} })
+                        .then(() => loadData())
+                        .then(() => { showView('dashboard'); alert('Lectura inicial guardada. A partir de la próxima se calculará el consumo.'); });
+                }
+                return;
             }
+            
+            const lastLectura = parseFloat(historial[historial.length - 1].lectura);
+            if (parseFloat(lectura) < lastLectura) return alert(`La lectura no puede ser menor a la anterior (${lastLectura.toFixed(2)})`);
+            
+            const delta = parseFloat(lectura) - lastLectura;
+            if (delta === 0) return alert("La lectura es idéntica a la anterior. No hay consumo que registrar.");
             
             const casaSola = document.getElementById('wizard-casa-sola').checked;
             
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             
-            // Textos corregidos para clarificar el ingreso TOTAL de tiempo.
-            document.getElementById('step2-title').innerText = casaSola ? 'Paso 2: Aparatos Fijos' : 'Paso 2: Aparatos Ocasionales';
+            const lastDate = new Date(historial[historial.length - 1].fecha);
+            const diffMs = Date.now() - lastDate.getTime();
+            const diffDays = (diffMs / (1000 * 60 * 60 * 24)).toFixed(1);
+            
+            document.getElementById('step2-title').innerText = casaSola ? 'Paso 2: Aparatos Fijos Activos' : 'Paso 2: Aparatos Ocasionales';
             document.getElementById('step2-desc').innerText = casaSola 
-                ? 'Desmarca los aparatos fijos que desconectaste en tu ausencia.' 
-                : 'Ingresa el tiempo TOTAL de uso de estos aparatos desde la última lectura.';
+                ? `Lapso: ${diffDays} días | Delta: ${delta.toFixed(2)} kWh — Desmarca los aparatos fijos que desconectaste.` 
+                : `Lapso: ${diffDays} días | Delta: ${delta.toFixed(2)} kWh — Ingresa el tiempo TOTAL de uso desde la última lectura.`;
             
             const container = document.getElementById('wizard-aparatos');
             container.innerHTML = '';
@@ -458,7 +515,7 @@
             if (casaSola) {
                 const fijos = aparatos.filter(a => a.tipo === 'Fijo');
                 if (fijos.length === 0) {
-                    container.innerHTML = '<p style="color:#666;">No hay aparatos fijos. Pulsa Guardar.</p>';
+                    container.innerHTML = '<p style="color:#666;">No hay aparatos fijos registrados. Pulsa Guardar.</p>';
                     return;
                 }
                 fijos.forEach(a => {
@@ -466,13 +523,12 @@
                         <div style="background:#fff; border:1px solid #eee; padding:14px; border-radius:8px; margin-bottom:10px;" class="flex-row">
                             <label for="chk-${a.id}" style="font-size:16px; margin:0;">${a.nombre} <span style="color:#888;font-weight:normal;">(${a.vatios}W)</span></label>
                             <input type="checkbox" id="chk-${a.id}" class="wizard-fijo-chk" value="${a.id}" checked style="width:24px;height:24px;">
-                        </div>
-                    `;
+                        </div>`;
                 });
             } else {
                 const ocasionales = aparatos.filter(a => a.tipo === 'Ocasional');
                 if (ocasionales.length === 0) {
-                    container.innerHTML = '<p style="color:#666;">No hay aparatos ocasionales. Pulsa Guardar.</p>';
+                    container.innerHTML = '<p style="color:#666;">No hay aparatos ocasionales registrados. Pulsa Guardar.</p>';
                     return;
                 }
                 ocasionales.forEach(a => {
@@ -489,101 +545,86 @@
                                     <option value="Minutos">Minutos</option>
                                 </select>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                 });
             }
         }
 
+        // =============================================================
+        // FUNCIÓN CORREGIDA: Cálculo directo de kWh por aparato
+        // Cada aparato calcula su consumo con la fórmula directa:
+        //   kWh = Vatios × Horas / 1000
+        // La diferencia con el medidor se muestra como "Desviación".
+        // =============================================================
         async function finishWizard() {
             const lectura = parseFloat(document.getElementById('wizard-lectura').value);
             const casaSola = document.getElementById('wizard-casa-sola').checked;
             
-            let lastLectura = lectura;
-            let elapsedDays = 1; 
+            const lastRec = historial[historial.length - 1];
+            const lastLectura = parseFloat(lastRec.lectura);
+            const ms = Date.now() - new Date(lastRec.fecha).getTime();
+            const elapsedDays = Math.max(ms / (1000 * 60 * 60 * 24), 0.01);
             
-            if (historial.length > 0) {
-                const lastRec = historial[historial.length - 1];
-                lastLectura = parseFloat(lastRec.lectura);
-                const ms = Date.now() - new Date(lastRec.fecha).getTime();
-                elapsedDays = Math.max(ms / (1000 * 60 * 60 * 24), 0.01);
-            }
-            
-            let delta = lectura - lastLectura;
+            const delta = lectura - lastLectura;
             let desglose = {};
+            let totalEstimado = 0;
             
             if (casaSola) {
+                // =============================================
                 // RUTA B: Casa Deshabitada
+                // Solo aparatos Fijos activos (marcados).
+                // Cada uno calcula su consumo DIRECTO.
+                // =============================================
                 let activeFijosIds = Array.from(document.querySelectorAll('.wizard-fijo-chk:checked')).map(cb => cb.value);
                 let fijos = aparatos.filter(a => a.tipo === 'Fijo' && activeFijosIds.includes(a.id));
                 
-                let totalWeight = fijos.reduce((sum, a) => sum + (parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays), 0);
-                
                 fijos.forEach(a => {
-                    let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays;
-                    let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
-                    let kwh = delta * factor;
                     let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
+                    let kwh = (parseFloat(a.vatios) * totalTime) / 1000;
+                    totalEstimado += kwh;
                     desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
                 });
                 
-                if (fijos.length === 0 && delta > 0) {
-                    desglose['unknown'] = { nombre: 'Desviación / Fuga', tipo: '-', tiempo: 0, unidad: '-', consumo: delta };
-                }
             } else {
+                // =============================================
                 // RUTA A: Casa Habitada
-                let totalOcasional = 0;
-                let activeOcaIds = Array.from(document.querySelectorAll('.wizard-oca-chk:checked')).map(cb => cb.value);
+                // Ocasionales: cálculo directo con tiempo total
+                //   ingresado por el usuario.
+                // Fijos: cálculo directo con perfil × días.
+                // =============================================
                 
+                // 1. Aparatos Ocasionales (tiempo total absoluto del usuario)
+                let activeOcaIds = Array.from(document.querySelectorAll('.wizard-oca-chk:checked')).map(cb => cb.value);
                 activeOcaIds.forEach(id => {
                     const a = aparatos.find(ap => ap.id === id);
-                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0); 
+                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0);
                     const unit = document.getElementById(`unit-${id}`).value;
-                    
-                    // ===============================================
-                    // CORRECCIÓN MATEMÁTICA: Ocasionales
-                    // El input del usuario es el TIEMPO TOTAL ABSOLUTO
-                    // usado durante este lapso. NO se debe inflar 
-                    // multiplicándolo por elapsedDays.
-                    // ===============================================
                     const totalH = unit === 'Minutos' ? time / 60 : time;
                     const kwh = (parseFloat(a.vatios) * totalH) / 1000;
-                    
-                    totalOcasional += kwh;
+                    totalEstimado += kwh;
                     desglose[a.id] = { nombre: a.nombre, tipo: 'Ocasional', tiempo: totalH, unidad: 'h', consumo: kwh };
                 });
                 
-                let remainder = delta - totalOcasional;
-                
-                // Si el consumo ocasional supera la lectura real del contador,
-                // se escala a la baja para nunca inventar energía fantasma.
-                if (remainder < 0) {
-                    if (totalOcasional > 0) {
-                        let scale = delta / totalOcasional;
-                        for (let id in desglose) {
-                            desglose[id].consumo *= scale;
-                            desglose[id].tiempo *= scale;
-                        }
-                    }
-                    remainder = 0;
-                }
-                
-                if (remainder > 0) {
-                    let fijos = aparatos.filter(a => a.tipo === 'Fijo');
-                    let totalWeight = fijos.reduce((sum, a) => sum + (parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays), 0);
-                    
-                    fijos.forEach(a => {
-                        let weight = parseFloat(a.vatios) * parseFloat(a.horasPromedio) * elapsedDays;
-                        let factor = totalWeight > 0 ? (weight / totalWeight) : 0;
-                        let kwh = remainder * factor; // Los Fijos se reparten el sobrante real.
-                        let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
-                        desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
-                    });
-                    
-                    if (fijos.length === 0) {
-                        desglose['unknown'] = { nombre: 'Consumo Base (No Identificado)', tipo: 'Fijo', tiempo: 24 * elapsedDays, unidad: 'h', consumo: remainder };
-                    }
-                }
+                // 2. Aparatos Fijos (cálculo directo: Vatios × HorasPromedio × Días / 1000)
+                let fijos = aparatos.filter(a => a.tipo === 'Fijo');
+                fijos.forEach(a => {
+                    let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
+                    let kwh = (parseFloat(a.vatios) * totalTime) / 1000;
+                    totalEstimado += kwh;
+                    desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
+                });
+            }
+            
+            // 3. Desviación = lo que dice el medidor vs lo que calculamos
+            let desviacion = delta - totalEstimado;
+            if (Math.abs(desviacion) > 0.01) {
+                desglose['desviacion'] = {
+                    nombre: desviacion > 0 ? 'Consumo No Identificado' : 'Ahorro vs Estimado',
+                    tipo: 'Ajuste',
+                    tiempo: 0,
+                    unidad: '-',
+                    consumo: desviacion
+                };
             }
             
             await apiCall('saveLectura', 'POST', { lectura, delta, casaSola, desglose });
