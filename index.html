@@ -1,636 +1,1195 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Control Eléctrico</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #f4f6f8; color: #333; -webkit-tap-highlight-color: transparent; }
-        header { background: #2c3e50; color: white; padding: 16px; text-align: center; font-size: 20px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        nav { display: flex; background: #34495e; position: sticky; top: 0; z-index: 100; }
-        nav button { flex: 1; padding: 14px; background: none; border: none; color: #ecf0f1; font-size: 15px; font-weight: 500; cursor: pointer; border-bottom: 3px solid transparent; }
-        nav button.active { border-bottom: 3px solid #3498db; color: white; }
-        .view { display: none; padding: 20px; max-width: 800px; margin: 0 auto; }
-        .view.active { display: block; }
-        .card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        input[type="number"], input[type="text"], select { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; box-sizing: border-box; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; }
-        input:focus, select:focus { outline: none; border-color: #3498db; }
-        button.btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 10px; }
-        button.primary { background: #3498db; color: white; }
-        button.danger { background: #e74c3c; color: white; }
-        button.secondary { background: #ecf0f1; color: #333; }
-        label { font-weight: 600; font-size: 14px; color: #555; }
-        .flex-row { display: flex; align-items: center; justify-content: space-between; }
-        .flex-row button { width: 48%; margin-bottom: 0; }
-        .checkbox-container { display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px; }
-        .checkbox-container input[type="checkbox"] { width: 24px; height: 24px; margin-right: 12px; }
-        .table-container { overflow-x: auto; margin-top: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        table { width: 100%; min-width: 350px; border-collapse: collapse; background: white; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
-        th { background: #34495e; color: white; font-weight: 500; }
-        tr:last-child td { border-bottom: none; }
-        tr.row-ajuste td { background: #fff8e1; font-style: italic; }
-        #spinner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-        #spinner.hidden { display: none !important; }
-        .loader { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 20px; }
-        .summary-bar { display: flex; justify-content: space-around; background: #ecf0f1; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; text-align: center; }
-        .summary-bar div { flex: 1; }
-        .summary-bar .val { font-size: 18px; font-weight: bold; color: #2c3e50; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Control Eléctrico</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      touch-action: manipulation;
+    }
+    .view {
+      display: none;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 16px;
+      padding-bottom: 100px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .view.active { display: flex; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 1.5rem; font-weight: 600; }
+    h2 { font-size: 1.15rem; margin-bottom: 8px; color: #222; }
+
+    /* ============ PROYECCIÓN ============ */
+    .projection-card {
+      background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 18px rgba(74,144,226,0.35);
+    }
+    .projection-card h2 {
+      font-size: 0.95rem;
+      font-weight: 500;
+      opacity: 0.9;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .projection-total {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .projection-total small {
+      font-size: 1rem;
+      font-weight: 400;
+      opacity: 0.85;
+      margin-right: 4px;
+    }
+    .projection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(255,255,255,0.25);
+      padding-top: 12px;
+    }
+    .projection-grid .label { opacity: 0.85; }
+    .projection-grid .value { font-weight: 600; text-align: right; }
+
+    .progress-wrap {
+      margin-top: 12px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 99px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #fff;
+      border-radius: 99px;
+      transition: width 0.5s ease;
+    }
+    .progress-note {
+      font-size: 0.72rem;
+      margin-top: 5px;
+      opacity: 0.85;
+    }
+
+    /* ============ GRÁFICAS ============ */
+    .chart-container {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 240px;
+    }
+
+    /* ============ BOTONES ============ */
+    .icon-btn {
+      background: transparent;
+      border: none;
+      font-size: 1.8rem;
+      padding: 4px 8px;
+      cursor: pointer;
+      color: #4A90E2;
+    }
+    .back-btn, .back-btn-step {
+      background: transparent;
+      color: #4A90E2;
+      border: none;
+      font-size: 1.5rem;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .fab {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #4A90E2;
+      color: #fff;
+      border: none;
+      font-size: 2.2rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(74,144,226,0.5);
+      z-index: 100;
+      cursor: pointer;
+    }
+    .next-btn, .primary-btn {
+      background: #4A90E2;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    .next-btn:active, .primary-btn:active, .fab:active,
+    .icon-btn:active, .back-btn:active, .back-btn-step:active {
+      opacity: 0.75;
+    }
+
+    /* ============ CONFIG / CRUD ============ */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    input, select {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      background: #fff;
+    }
+    input:focus, select:focus {
+      outline: 2px solid #4A90E2;
+      border-color: #4A90E2;
+    }
+    ul { list-style: none; }
+    li {
+      background: #fff;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      gap: 10px;
+    }
+    .li-info { flex: 1; min-width: 0; }
+    .li-info strong { display: block; margin-bottom: 2px; }
+    .li-buttons { display: flex; gap: 6px; flex-shrink: 0; }
+    .edit-btn, .delete-btn {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .edit-btn { background: #f0f0f0; }
+    .delete-btn { background: #ffe0e0; color: #d33; }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .badge-fijo { background: #d4edda; color: #155724; }
+    .badge-ocasional { background: #fff3cd; color: #856404; }
+
+    /* ============ WIZARD ============ */
+    .step {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .step.active { display: flex; }
+
+    .info-box {
+      background: #eaf2fb;
+      color: #2a5d9c;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border: 1px solid #eee;
+    }
+    .checklist-item input[type="checkbox"] {
+      width: 22px; height: 22px; flex-shrink: 0;
+    }
+    .checklist-item.disabled {
+      background: #eef4fb;
+      border-color: #c9dcf3;
+    }
+    .checklist-item label { flex: 1; }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .button-row .next-btn { flex: 1; }
+    .button-row .back-btn-step {
+      flex: 0 0 auto;
+      background: #f0f0f0;
+      color: #555;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 1rem;
+    }
+
+    .muted { color: #888; font-size: 0.9rem; }
+    .empty-state {
+      text-align: center;
+      padding: 24px;
+      color: #999;
+    }
+  </style>
 </head>
 <body>
 
-    <header>Control Eléctrico</header>
-    <nav>
-        <button id="nav-dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
-        <button id="nav-wizard" onclick="showView('wizard')">Lectura</button>
-        <button id="nav-ficha" onclick="showView('ficha')">Ficha Técnica</button>
-    </nav>
+  <!-- ==================== DASHBOARD ==================== -->
+  <div id="dashboard" class="view active">
+    <header>
+      <h1>Control Eléctrico</h1>
+      <button id="btnConfig" class="icon-btn" aria-label="Configuración">⚙️</button>
+    </header>
 
-    <div id="spinner">
-        <div class="loader"></div>
+    <div id="projectionCard" class="projection-card">
+      <h2>💡 Proyección de factura mensual</h2>
+      <div class="projection-total" id="projTotal">RD$ --</div>
+      <div class="projection-grid">
+        <span class="label">Consumo proyectado</span>
+        <span class="value" id="projKwh">-- kWh</span>
+        <span class="label">Energía (bloques)</span>
+        <span class="value" id="projEnergia">RD$ --</span>
+        <span class="label">Cargo fijo</span>
+        <span class="value" id="projCargoFijo">RD$ --</span>
+        <span class="label">Promedio diario</span>
+        <span class="value" id="projPromedio">-- kWh/día</span>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar" id="projProgress" style="width:0%"></div></div>
+      <div class="progress-note" id="projProgressNote">Sin datos suficientes</div>
     </div>
 
-    <!-- VISTA: DASHBOARD -->
-    <div id="dashboard" class="view active">
-        <div class="flex-row" style="margin-bottom:15px;">
-            <select id="dash-mode" style="width:48%; margin:0;">
-                <option value="mes">Mensual</option>
-                <option value="ano">Anual</option>
-            </select>
-            <select id="dash-selector" style="width:48%; margin:0;"></select>
-        </div>
-
-        <div class="card" id="card-historico" style="display:none;">
-            <h3 style="margin-top:0;">Consumo (kWh)</h3>
-            <p style="font-size:12px; color:#666;">Toca un punto para ver detalles del lapso.</p>
-            <div class="chart-container">
-                <canvas id="chart-historico"></canvas>
-            </div>
-        </div>
-
-        <div class="card" id="card-desglose" style="display:none;">
-            <h3 style="margin-top:0;" id="titulo-desglose">Desglose</h3>
-            <div id="summary-container"></div>
-            <div class="chart-container">
-                <canvas id="chart-desglose"></canvas>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Aparato</th>
-                            <th>Tipo</th>
-                            <th>Tiempo</th>
-                            <th>kWh</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-desglose-body"></tbody>
-                </table>
-            </div>
-        </div>
+    <div class="chart-container">
+      <canvas id="lineChart"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="pieChart"></canvas>
     </div>
 
-    <!-- VISTA: WIZARD -->
-    <div id="wizard" class="view">
-        <div id="step1" class="card">
-            <h3 style="margin-top:0;">Paso 1: Lectura General</h3>
-            <div id="wizard-info" style="background:#eaf6ff; padding:12px; border-radius:8px; margin-bottom:16px; font-size:14px; display:none;"></div>
-            <label>Lectura Actual del Contador (kWh):</label>
-            <input type="number" id="wizard-lectura" step="0.01" placeholder="Ej. 14500.50">
-            
-            <div class="checkbox-container" style="background:#f9f9f9; padding:12px; border-radius:8px;">
-                <input type="checkbox" id="wizard-casa-sola">
-                <label for="wizard-casa-sola" style="margin:0; width:100%;">¿La casa estuvo deshabitada?<br>
-                <small style="color:#777; font-weight:normal;">(Omite consumo ocasional activo)</small></label>
-            </div>
-            <button class="btn primary" onclick="wizardStep2()">Siguiente</button>
-        </div>
+    <button id="btnNuevaLectura" class="fab" aria-label="Nueva lectura">+</button>
+  </div>
 
-        <div id="step2" class="card hidden">
-            <h3 style="margin-top:0;" id="step2-title">Paso 2</h3>
-            <p style="font-size:14px; color:#666;" id="step2-desc"></p>
-            <div id="wizard-aparatos"></div>
-            <div class="flex-row" style="margin-top:20px;">
-                <button class="btn secondary" onclick="resetWizard()">Atrás</button>
-                <button class="btn primary" onclick="finishWizard()">Guardar Lectura</button>
-            </div>
-        </div>
+  <!-- ==================== CONFIG ==================== -->
+  <div id="config" class="view">
+    <header>
+      <button id="btnBackFromConfig" class="back-btn">←</button>
+      <h1>Ficha Técnica</h1>
+      <span></span>
+    </header>
+
+    <form id="applianceForm">
+      <input type="hidden" id="applianceId">
+      <input type="text" id="applianceName" placeholder="Nombre del aparato" required>
+      <input type="number" id="applianceWatts" placeholder="Potencia (Watts)" required min="1" step="1">
+      <select id="applianceTipo" required>
+        <option value="Fijo">Fijo (siempre activo)</option>
+        <option value="Ocasional" selected>Ocasional (uso esporádico)</option>
+      </select>
+      <input type="number" id="applianceHoursAvg" placeholder="Horas promedio al día" required min="0.1" step="0.1">
+      <button type="submit" class="primary-btn">Agregar</button>
+    </form>
+
+    <ul id="applianceList"></ul>
+  </div>
+
+  <!-- ==================== WIZARD (2 PASOS) ==================== -->
+  <div id="wizard" class="view">
+    <header>
+      <button id="btnCancelWizard" class="back-btn">←</button>
+      <h1>Nueva Lectura</h1>
+      <span></span>
+    </header>
+
+    <!-- PASO 1 -->
+    <div id="step1" class="step active">
+      <h2>Paso 1 · Lectura del contador</h2>
+      <p id="prevReadingText" class="muted">Lectura anterior: --</p>
+      <input type="number" id="readingInput" placeholder="Lectura actual (kWh)" required min="0" step="0.01">
+      <button id="btnNext1" class="next-btn">Siguiente →</button>
     </div>
 
-    <!-- VISTA: FICHA TÉCNICA -->
-    <div id="ficha" class="view">
-        <button class="btn primary" onclick="showAparatoForm()">+ Añadir Aparato</button>
-        
-        <div id="aparato-form" class="card hidden">
-            <h3 style="margin-top:0;" id="form-title">Nuevo Aparato</h3>
-            <input type="hidden" id="aparato-id">
-            <label>Nombre:</label> 
-            <input type="text" id="aparato-nombre" placeholder="Ej. Nevera">
-            <label>Consumo (Vatios - W):</label> 
-            <input type="number" id="aparato-vatios" placeholder="Ej. 150">
-            <label>Tipo de Consumo:</label>
-            <select id="aparato-tipo">
-                <option value="Fijo">Fijo (Consumo Base / Continuo)</option>
-                <option value="Ocasional">Ocasional (Uso Puntual)</option>
-            </select>
-            <label>Horas Promedio (al día):</label> 
-            <input type="number" id="aparato-horasMax" step="0.1" placeholder="Ej. 24">
-            
-            <div class="flex-row">
-                <button class="btn secondary" onclick="hideAparatoForm()">Cancelar</button>
-                <button class="btn primary" onclick="saveAparato()">Guardar</button>
-            </div>
-        </div>
-
-        <div id="aparatos-list"></div>
+    <!-- PASO 2 (ahora guarda directamente) -->
+    <div id="step2" class="step">
+      <h2>Paso 2 · Aparatos activos</h2>
+      <div class="info-box">
+        Los aparatos <strong>Fijos</strong> ya están marcados automáticamente.
+        Marca los <strong>Ocasionales</strong> que se hayan usado en este período y pulsa <strong>Guardar</strong>.
+      </div>
+      <div id="applianceChecklist"></div>
+      <div class="button-row">
+        <button id="btnBack2" class="back-btn-step">← Atrás</button>
+        <button id="btnNext2" class="next-btn">Guardar Lectura ✓</button>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec";
-        
-        let aparatos = [];
-        let historial = [];
-        let chartHistorico = null;
-        let chartDesglose = null;
-        let currentFilteredData = [];
+  <script>
+  // ============================================================
+  //  CONFIGURACIÓN DEL BACKEND
+  // ============================================================
+  const API_URL = 'https://script.google.com/macros/s/AKfycbwcqjjHBNLy8y14PiTMHZR9XGl2-snl4CY15ABWxS0KxRLl-Ic9f9MDc6-mjBjieEfA/exec';
 
-        document.addEventListener("DOMContentLoaded", init);
+  // ============================================================
+  //  ESTADO GLOBAL
+  // ============================================================
+  let appliances = [];
+  let allRecords = [];
+  let config = {
+    cargoFijo: 137.25,
+    diasCiclo: 30,
+    bloques: [
+      { limite: 200,      precio: 6.05  },
+      { limite: 300,      precio: 8.59  },
+      { limite: 700,      precio: 12.89 },
+      { limite: Infinity, precio: 13.09 }
+    ]
+  };
 
-        async function init() {
-            await loadData();
-            document.getElementById('dash-mode').addEventListener('change', () => { initFilters(); renderCharts(); });
-            document.getElementById('dash-selector').addEventListener('change', renderCharts);
+  let prevReading = 0;
+  let readingValue = null;
+  let selectedAppliances = [];
+
+  let lineChart = null;
+  let pieChart = null;
+
+  // ============================================================
+  //  INICIALIZACIÓN
+  // ============================================================
+  document.addEventListener('DOMContentLoaded', async () => {
+    loadAppliancesFromStorage();
+    attachEventListeners();
+    await fetchBackendData();
+    autoImportarAparatosDesdeHistorial();
+    renderCharts();
+    renderProjection();
+    showView('dashboard');
+  });
+
+  // ============================================================
+  //  NAVEGACIÓN
+  // ============================================================
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function showStep(n) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('step' + n);
+    if (el) el.classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // ============================================================
+  //  PERSISTENCIA LOCAL DE APARATOS
+  // ============================================================
+  function loadAppliancesFromStorage() {
+    try {
+      const raw = localStorage.getItem('appliances');
+      appliances = raw ? JSON.parse(raw) : [];
+    } catch { appliances = []; }
+  }
+  function saveAppliancesToStorage() {
+    localStorage.setItem('appliances', JSON.stringify(appliances));
+  }
+
+  // ============================================================
+  //  EVENT LISTENERS
+  // ============================================================
+  function attachEventListeners() {
+    document.getElementById('btnConfig').addEventListener('click', () => {
+      showView('config');
+      renderApplianceList();
+    });
+    document.getElementById('btnNuevaLectura').addEventListener('click', startWizard);
+
+    document.getElementById('btnBackFromConfig').addEventListener('click', () => showView('dashboard'));
+    document.getElementById('applianceForm').addEventListener('submit', handleApplianceSubmit);
+
+    document.getElementById('btnCancelWizard').addEventListener('click', () => showView('dashboard'));
+    document.getElementById('btnNext1').addEventListener('click', step1Next);
+    document.getElementById('btnBack2').addEventListener('click', () => showStep(1));
+    document.getElementById('btnNext2').addEventListener('click', guardarDesdeStep2);
+  }
+
+  // ============================================================
+  //  CRUD DE APARATOS
+  // ============================================================
+  function handleApplianceSubmit(e) {
+    e.preventDefault();
+    const id          = document.getElementById('applianceId').value;
+    const name        = document.getElementById('applianceName').value.trim();
+    const watts       = parseFloat(document.getElementById('applianceWatts').value);
+    const tipo        = document.getElementById('applianceTipo').value;
+    const horasProm   = parseFloat(document.getElementById('applianceHoursAvg').value);
+
+    if (!name || isNaN(watts) || watts <= 0 || isNaN(horasProm) || horasProm <= 0) {
+      alert('Datos inválidos');
+      return;
+    }
+
+    const appliance = {
+      id: id || Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      name, watts, tipo, horasPromedio: horasProm
+    };
+
+    if (id) {
+      const i = appliances.findIndex(a => a.id === id);
+      if (i !== -1) appliances[i] = appliance;
+    } else {
+      appliances.push(appliance);
+    }
+
+    saveAppliancesToStorage();
+    renderApplianceList();
+    document.getElementById('applianceForm').reset();
+    document.getElementById('applianceId').value = '';
+    document.querySelector('#applianceForm button[type="submit"]').textContent = 'Agregar';
+  }
+
+  function renderApplianceList() {
+    const list = document.getElementById('applianceList');
+    list.innerHTML = '';
+    if (appliances.length === 0) {
+      list.innerHTML = '<li class="empty-state">No hay aparatos registrados.</li>';
+      return;
+    }
+    appliances.forEach(app => {
+      const badge = app.tipo === 'Fijo'
+        ? '<span class="badge badge-fijo">Fijo</span>'
+        : '<span class="badge badge-ocasional">Ocasional</span>';
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div class="li-info">
+          <strong>${app.name} ${badge}</strong>
+          <span class="muted">${app.watts} W · ${app.horasPromedio} h/día prom.</span>
+        </div>
+        <div class="li-buttons">
+          <button class="edit-btn"   data-id="${app.id}">Editar</button>
+          <button class="delete-btn" data-id="${app.id}">Eliminar</button>
+        </div>`;
+      li.querySelector('.edit-btn').addEventListener('click', () => editAppliance(app.id));
+      li.querySelector('.delete-btn').addEventListener('click', () => deleteAppliance(app.id));
+      list.appendChild(li);
+    });
+  }
+
+  function editAppliance(id) {
+    const app = appliances.find(a => a.id === id);
+    if (!app) return;
+    document.getElementById('applianceId').value     = app.id;
+    document.getElementById('applianceName').value   = app.name;
+    document.getElementById('applianceWatts').value  = app.watts;
+    document.getElementById('applianceTipo').value   = app.tipo || 'Ocasional';
+    document.getElementById('applianceHoursAvg').value = app.horasPromedio;
+    document.querySelector('#applianceForm button[type="submit"]').textContent = 'Actualizar';
+    window.scrollTo(0, 0);
+  }
+
+  function deleteAppliance(id) {
+    if (!confirm('¿Eliminar este aparato?')) return;
+    appliances = appliances.filter(a => a.id !== id);
+    saveAppliancesToStorage();
+    renderApplianceList();
+  }
+
+  // ============================================================
+  //  WIZARD — PASO 1 (Lectura del contador)
+  // ============================================================
+  async function startWizard() {
+    selectedAppliances = [];
+    readingValue = null;
+
+    const inputReading = document.getElementById('readingInput');
+    if (inputReading) inputReading.value = '';
+
+    const checklist = document.getElementById('applianceChecklist');
+    if (checklist) checklist.innerHTML = '';
+
+    // Última lectura conocida
+    prevReading = allRecords.length > 0
+      ? Number(allRecords[allRecords.length - 1].reading) || 0
+      : 0;
+
+    const prevText = document.getElementById('prevReadingText');
+    if (prevText) {
+      prevText.textContent = `Lectura anterior: ${prevReading.toFixed(2)} kWh`;
+    }
+
+    showStep(1);
+    showView('wizard');
+  }
+
+  function step1Next() {
+    const value = parseFloat(document.getElementById('readingInput').value);
+    if (isNaN(value) || value <= 0) {
+      alert('Ingresa una lectura válida mayor a 0');
+      return;
+    }
+    if (value <= prevReading) {
+      alert(`La lectura actual debe ser mayor que la anterior (${prevReading.toFixed(2)} kWh)`);
+      return;
+    }
+    readingValue = value;
+    renderChecklist();
+    showStep(2);
+  }
+
+  // ============================================================
+  //  WIZARD — PASO 2 (Checklist dinámico)
+  // ============================================================
+  function renderChecklist() {
+    const container = document.getElementById('applianceChecklist');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (appliances.length === 0) {
+      container.innerHTML = '<p class="muted">No hay aparatos registrados. Ve a Ficha Técnica primero.</p>';
+      return;
+    }
+
+    appliances.forEach(app => {
+      const isFijo = app.tipo === 'Fijo';
+      const div = document.createElement('div');
+      div.className = 'checklist-item' + (isFijo ? ' disabled' : '');
+      div.innerHTML = `
+        <input type="checkbox" id="chk-${app.id}" value="${app.id}"
+               ${isFijo ? 'checked disabled' : ''}>
+        <label for="chk-${app.id}">
+          <strong>${app.name}</strong>
+          <span class="muted"> · ${app.watts} W · ${app.horasPromedio} h/día</span>
+        </label>`;
+      container.appendChild(div);
+    });
+  }
+
+  // ============================================================
+  //  WIZARD — GUARDADO DIRECTO DESDE PASO 2
+  //  Se usan automáticamente las horasPromedio de cada aparato.
+  // ============================================================
+  function guardarDesdeStep2() {
+    // 1) Construir la lista de aparatos activos (Fijos + Ocasionales marcados)
+    selectedAppliances = [];
+
+    appliances.forEach(app => {
+      if (app.tipo === 'Fijo') {
+        selectedAppliances.push(app);
+      } else {
+        const cb = document.querySelector(`#chk-${app.id}`);
+        if (cb && cb.checked) selectedAppliances.push(app);
+      }
+    });
+
+    if (selectedAppliances.length === 0) {
+      alert('Selecciona al menos un aparato (o registra uno Fijo).');
+      return;
+    }
+
+    // 2) Guardar directamente
+    saveReading();
+  }
+
+  // ============================================================
+  //  CÁLCULO PROPORCIONAL Y GUARDADO (sin input de horas)
+  //  ⚠️ FIX CORS: POST sin headers 'application/json'.
+  // ============================================================
+  function saveReading() {
+    if (!selectedAppliances || selectedAppliances.length === 0) {
+      alert('No hay aparatos seleccionados.');
+      return;
+    }
+    if (readingValue === null || isNaN(readingValue)) {
+      alert('Falta la lectura actual.');
+      return;
+    }
+
+    const consumoReal = readingValue - prevReading;
+    if (consumoReal <= 0) {
+      alert('La lectura actual debe ser mayor que la anterior.');
+      return;
+    }
+
+    // 1) Estimado teórico usando SIEMPRE app.horasPromedio
+    const items = selectedAppliances.map(app => {
+      const horas = Number(app.horasPromedio) || 1;
+      const teorico = (app.watts / 1000) * horas;
+      return { app, horas, teorico };
+    });
+
+    const teoricoTotal = items.reduce((s, i) => s + i.teorico, 0);
+
+    // 2) Distribución proporcional
+    let distribucion = items.map(i => {
+      const consumo = teoricoTotal > 0
+        ? (i.teorico / teoricoTotal) * consumoReal
+        : consumoReal / items.length;
+      return { ...i, consumoReal: consumo };
+    });
+
+    // 3) Normalización final (cuadre exacto con el medidor)
+    const sumaDist = distribucion.reduce((s, d) => s + d.consumoReal, 0);
+    if (sumaDist > 0) {
+      const factor = consumoReal / sumaDist;
+      distribucion.forEach(d => d.consumoReal *= factor);
+    }
+
+    // 4) Payload
+    const record = {
+      timestamp: new Date().toISOString(),
+      reading:   Number(readingValue.toFixed(3)),
+      totalConsumption: Number(consumoReal.toFixed(3)),
+      appliances: distribucion.map(d => ({
+        id:            d.app.id,
+        name:          d.app.name,
+        watts:         d.app.watts,
+        tipo:          d.app.tipo || 'Ocasional',
+        horasPromedio: d.app.horasPromedio,
+        horasUsadas:   Number(d.horas.toFixed(2)),
+        teorico:       Number(d.teorico.toFixed(4)),
+        consumoReal:   Number(d.consumoReal.toFixed(4))
+      }))
+    };
+
+    // 5) POST al backend sin headers (evita preflight CORS que GAS no soporta)
+    fetch(API_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      body: JSON.stringify(record)
+    })
+    .then(r => r.text())
+    .then(text => {
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        console.warn('[saveReading] Respuesta no JSON (primeros 300):', text.slice(0, 300));
+        throw new Error('El servidor devolvió HTML en lugar de JSON');
+      }
+      if (data && data.success) {
+        alert('✓ Registro guardado correctamente');
+        return fetchBackendData();
+      }
+      throw new Error(data && data.error ? data.error : 'Respuesta inesperada del servidor');
+    })
+    .then(() => {
+      renderCharts();
+      renderProjection();
+      showView('dashboard');
+    })
+    .catch(err => {
+      console.error('[saveReading] Error:', err);
+      alert('Error al guardar: ' + err.message);
+    });
+  }
+
+  // ============================================================
+  //  BACKEND — GET (records + config)
+  // ============================================================
+  async function fetchBackendData() {
+    try {
+      const url = API_URL + (API_URL.indexOf('?') === -1 ? '?' : '&') + '_t=' + Date.now();
+      const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+
+      const text = await res.text();
+      console.log('[DEBUG] Respuesta cruda (primeros 400 chars):', text.substring(0, 400));
+
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) { throw new Error('La respuesta no es JSON válido'); }
+
+      console.log('[DEBUG] Data parseada:', data);
+
+      if (Array.isArray(data)) {
+        allRecords = data;
+      } else if (data && Array.isArray(data.records)) {
+        allRecords = data.records;
+
+        if (data.config && Array.isArray(data.config.bloques) && data.config.bloques.length) {
+          config = {
+            cargoFijo: Number(data.config.cargoFijo) || config.cargoFijo,
+            diasCiclo: Number(data.config.diasCiclo) || config.diasCiclo,
+            bloques: data.config.bloques.map(b => ({
+              limite: (b.limite === null || b.limite === undefined || b.limite === '')
+                ? Infinity : Number(b.limite),
+              precio: Number(b.precio) || 0
+            }))
+          };
+        }
+      } else if (data && data.success === false) {
+        console.error('[BACKEND ERROR]', data.error, data.stack);
+        allRecords = [];
+      } else {
+        console.warn('[DEBUG] Respuesta con formato desconocido:', data);
+        allRecords = [];
+      }
+
+      console.log('[DEBUG] allRecords.length =', allRecords.length);
+
+    } catch (err) {
+      console.error('[fetchBackendData] Error:', err);
+      allRecords = allRecords || [];
+    }
+  }
+
+  // ============================================================
+  //  AUTO-IMPORT
+  // ============================================================
+  function autoImportarAparatosDesdeHistorial() {
+    try {
+      if (appliances.length > 0) return;
+      if (!Array.isArray(allRecords) || allRecords.length === 0) return;
+
+      let extraidos = [];
+      for (let i = allRecords.length - 1; i >= 0; i--) {
+        const r = allRecords[i];
+        const arr = extraerAparatos(r && r.appliances);
+        if (arr.length > 0) {
+          extraidos = arr;
+          break;
+        }
+      }
+      if (!extraidos.length) return;
+
+      let periodDays = 30;
+      if (allRecords.length >= 2) {
+        const sorted = allRecords
+          .filter(r => r && r.timestamp)
+          .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        if (sorted.length >= 2) {
+          const delta = (new Date(sorted[sorted.length - 1].timestamp)
+                      - new Date(sorted[sorted.length - 2].timestamp)) / 86400000;
+          if (isFinite(delta) && delta > 0) periodDays = delta;
+        }
+      }
+
+      const imported = extraidos.map(a => {
+        const tipo = a.tipo || 'Ocasional';
+        const isFijo = tipo.toLowerCase() === 'fijo';
+
+        let watts = a.watts || 0;
+        if (watts <= 0 && a.consumoKwh > 0 && a.horas > 0) {
+          watts = (a.consumoKwh / a.horas) * 1000;
+        }
+        if (!isFinite(watts) || watts <= 0) watts = 100;
+
+        let horasPromedio;
+        if (isFijo) {
+          horasPromedio = 24;
+        } else {
+          horasPromedio = (a.horas && periodDays > 0) ? (a.horas / periodDays) : 1;
+          if (horasPromedio < 0.1) horasPromedio = 0.1;
         }
 
-        function showSpinner() { document.getElementById('spinner').classList.remove('hidden'); }
-        function hideSpinner() { document.getElementById('spinner').classList.add('hidden'); }
+        return {
+          id: a.id || ('AP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)),
+          name: a.name,
+          watts: Math.round(watts),
+          tipo: tipo,
+          horasPromedio: Number(horasPromedio.toFixed(2))
+        };
+      });
 
-        function showView(viewId) {
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-            
-            document.getElementById(viewId).classList.add('active');
-            document.getElementById(`nav-${viewId}`).classList.add('active');
-            
-            if (viewId === 'dashboard') { initFilters(); renderCharts(); }
-            if (viewId === 'ficha') renderFicha();
-            if (viewId === 'wizard') resetWizard();
+      if (imported.length === 0) return;
+
+      appliances = imported;
+      saveAppliancesToStorage();
+      console.log('[autoImport] Aparatos importados del historial:', appliances);
+
+    } catch (err) {
+      console.error('[autoImportarAparatosDesdeHistorial] Error:', err);
+    }
+  }
+
+  // ============================================================
+  //  EXTRACCIÓN Y NORMALIZACIÓN DE APARATOS
+  // ============================================================
+  function extraerAparatos(rawAppliances) {
+    try {
+      if (!rawAppliances) return [];
+
+      let data = rawAppliances;
+
+      if (typeof data === 'string') {
+        const trimmed = data.trim();
+        if (!trimmed) return [];
+        try { data = JSON.parse(trimmed); }
+        catch (e) {
+          console.warn('[extraerAparatos] JSON inválido:', trimmed.slice(0, 100));
+          return [];
         }
+      }
 
-        async function apiCall(action, method = 'GET', data = null) {
-            showSpinner();
-            try {
-                let response;
-                if (method === 'GET') {
-                    response = await fetch(`${GAS_URL}?action=${action}`, { method: "GET", redirect: "follow" });
-                } else {
-                    data.action = action;
-                    response = await fetch(GAS_URL, {
-                        method: "POST",
-                        redirect: "follow",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify(data)
-                    });
+      if (!data || typeof data !== 'object') return [];
+
+      let items = [];
+
+      if (Array.isArray(data)) {
+        items = data.slice();
+      } else {
+        items = Object.entries(data).map(([key, val]) => {
+          if (!val || typeof val !== 'object') return null;
+          return Object.assign({ __key: key }, val);
+        }).filter(Boolean);
+      }
+
+      return items
+        .map(normalizarAparato)
+        .filter(a => a !== null && isFinite(a.consumoKwh) && a.consumoKwh !== 0);
+
+    } catch (err) {
+      console.error('[extraerAparatos] Error inesperado:', err);
+      return [];
+    }
+  }
+
+  function normalizarAparato(a) {
+    try {
+      if (!a || typeof a !== 'object') return null;
+
+      const num = (...vals) => {
+        for (const v of vals) {
+          if (v !== undefined && v !== null && v !== '') {
+            const n = Number(v);
+            if (!isNaN(n) && isFinite(n)) return n;
+          }
+        }
+        return 0;
+      };
+
+      const str = (...vals) => {
+        for (const v of vals) {
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            return String(v).trim();
+          }
+        }
+        return '';
+      };
+
+      const tipo = str(a.tipo, a.Tipo, a.tipoConsumo, a.tipo_consumo, 'Ocasional');
+      if (tipo.toLowerCase() === 'ajuste') return null;
+
+      const nombre = str(a.name, a.nombre, a.Nombre, 'Sin nombre');
+      const id     = str(a.id, a.__key, a.ID);
+
+      const watts  = num(a.watts, a.Watts, a.potencia, a.Potencia, a.Potencia_W, a.potencia_w);
+      const horas  = num(a.horasUsadas, a.horas, a.hours, a.tiempo, a.horasPromedio, a.Horas_Promedio_Dia);
+
+      let consumo = num(a.consumoReal, a.consumoKwh, a.consumo, a.estimatedKwh, a.kwh);
+      if (consumo === 0 && watts > 0 && horas > 0) {
+        consumo = (watts / 1000) * horas;
+      }
+
+      return {
+        id: id,
+        name: nombre,
+        tipo: tipo,
+        watts: watts,
+        horas: horas || null,
+        consumoKwh: consumo
+      };
+
+    } catch (err) {
+      console.warn('[normalizarAparato] Error con item:', a, err);
+      return null;
+    }
+  }
+
+  // ============================================================
+  //  SERIE DIARIA
+  // ============================================================
+  function buildDailySeries(records) {
+    const valid = (records || [])
+      .filter(r => r && r.timestamp)
+      .map(r => ({
+        ts: new Date(r.timestamp).getTime(),
+        tc: Number(r.totalConsumption) || 0
+      }))
+      .filter(r => isFinite(r.ts))
+      .sort((a, b) => a.ts - b.ts);
+
+    if (valid.length === 0) return { labels: [], data: [] };
+
+    const byDay = new Map();
+    valid.forEach(r => {
+      const d = new Date(r.ts);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const dd = d.getDate();
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+
+      if (!byDay.has(key)) {
+        byDay.set(key, {
+          dateObj: new Date(y, m, dd),
+          firstTs: r.ts,
+          lastTs: r.ts,
+          sum: 0
+        });
+      }
+      const b = byDay.get(key);
+      b.sum += r.tc;
+      if (r.ts < b.firstTs) b.firstTs = r.ts;
+      if (r.ts > b.lastTs)  b.lastTs  = r.ts;
+    });
+
+    const days = Array.from(byDay.values()).sort((a, b) => a.dateObj - b.dateObj);
+
+    const labels = [];
+    const data = [];
+    let prevLastTs = null;
+
+    days.forEach(bucket => {
+      let daysElapsed;
+
+      if (prevLastTs === null) {
+        const selfDelta = (bucket.lastTs - bucket.firstTs) / 86400000;
+        daysElapsed = (isFinite(selfDelta) && selfDelta > 0) ? selfDelta : 1;
+      } else {
+        const delta = (bucket.lastTs - prevLastTs) / 86400000;
+        daysElapsed = (isFinite(delta) && delta > 0) ? delta : 1;
+        if (daysElapsed < 1) daysElapsed = 1;
+      }
+
+      const rate = bucket.sum / daysElapsed;
+
+      labels.push(bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' }));
+      data.push(Number(rate.toFixed(3)));
+
+      prevLastTs = bucket.lastTs;
+    });
+
+    return { labels, data };
+  }
+
+  // ============================================================
+  //  GRÁFICAS
+  // ============================================================
+  function renderCharts() {
+    try {
+      if (lineChart) { lineChart.destroy(); lineChart = null; }
+      if (pieChart)  { pieChart.destroy();  pieChart  = null; }
+
+      const lineCtx = document.getElementById('lineChart').getContext('2d');
+      const serie = buildDailySeries(allRecords);
+
+      lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels: serie.labels,
+          datasets: [{
+            label: 'Consumo diario (kWh/día)',
+            data: serie.data,
+            borderColor: '#4A90E2',
+            backgroundColor: 'rgba(74,144,226,0.15)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#4A90E2'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const v = Number(ctx.parsed.y) || 0;
+                  return `${v.toFixed(2)} kWh/día`;
                 }
-                const result = await response.json();
-                hideSpinner();
-                if (result.error) throw new Error(result.error);
-                return result;
-            } catch (error) {
-                hideSpinner();
-                alert(`Error de conexión al ${method === 'GET' ? 'cargar datos' : 'guardar'}.`);
-                throw error;
+              }
             }
+          },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'kWh/día' } }
+          }
         }
+      });
 
-        async function loadData() {
-            try {
-                const [resDash, resAp] = await Promise.all([
-                    apiCall('getDashboard', 'GET'),
-                    apiCall('getAparatos', 'GET')
-                ]);
-                historial = (resDash.historial || []).sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-                aparatos = resAp.aparatos || [];
-                initFilters();
-                renderCharts();
-            } catch (e) {}
+      const pieCtx = document.getElementById('pieChart').getContext('2d');
+      let pieLabels = [];
+      let pieData = [];
+
+      try {
+        if (allRecords.length > 0) {
+          const last = allRecords[allRecords.length - 1];
+          const norm = extraerAparatos(last && last.appliances);
+          const validos = norm.filter(a => a && a.consumoKwh > 0);
+          pieLabels = validos.map(a => a.name);
+          pieData   = validos.map(a => Number(a.consumoKwh.toFixed(3)));
         }
+      } catch (err) {
+        console.error('[renderCharts → pastel] Error:', err);
+      }
 
-        function initFilters() {
-            const mode = document.getElementById('dash-mode').value;
-            const selector = document.getElementById('dash-selector');
-            selector.innerHTML = '';
-            if (historial.length === 0) return;
-            let options = new Set();
-            historial.forEach(h => {
-                let d = new Date(h.fecha);
-                if (mode === 'mes') {
-                    options.add(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2, '0'));
-                } else {
-                    options.add(d.getFullYear().toString());
+      pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: pieLabels.length ? pieLabels : ['Sin datos'],
+          datasets: [{
+            data: pieData.length ? pieData : [1],
+            backgroundColor: [
+              '#4A90E2','#50E3C2','#F5A623','#D0021B','#B8E986',
+              '#8B572A','#417505','#9B9B9B','#9013FE','#FF6900'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const v = Number(ctx.parsed) || 0;
+                  return `${ctx.label}: ${v.toFixed(2)} kWh`;
                 }
-            });
-            Array.from(options).sort().reverse().forEach(opt => {
-                let option = document.createElement('option');
-                option.value = opt;
-                if (mode === 'mes') {
-                    const [y, m] = opt.split('-');
-                    const date = new Date(y, parseInt(m)-1);
-                    option.text = date.toLocaleString('es-ES', {month:'long', year:'numeric'}).toUpperCase();
-                } else {
-                    option.text = opt;
-                }
-                selector.appendChild(option);
-            });
-        }
-
-        function renderCharts() {
-            if (historial.length === 0) {
-                document.getElementById('card-historico').style.display = 'none';
-                document.getElementById('card-desglose').style.display = 'none';
-                return;
+              }
             }
-            document.getElementById('card-historico').style.display = 'block';
-            document.getElementById('card-desglose').style.display = 'block';
-            const mode = document.getElementById('dash-mode').value;
-            const selected = document.getElementById('dash-selector').value;
-            let filtered = historial.filter(h => {
-                let d = new Date(h.fecha);
-                if (mode === 'mes') return (d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')) === selected;
-                return d.getFullYear().toString() === selected;
-            });
-            let grouped = {};
-            filtered.forEach(h => {
-                let d = new Date(h.fecha);
-                let key = mode === 'mes' ? d.getDate() + ' ' + d.toLocaleString('es-ES', {month:'short'}) : d.toLocaleString('es-ES', {month:'long'});
-                if (!grouped[key]) grouped[key] = { label: key, delta: 0, originalRecords: [], ms: d.getTime() };
-                grouped[key].delta += parseFloat(h.delta);
-                grouped[key].originalRecords.push(h);
-            });
-            let sortedKeys = Object.keys(grouped).sort((a,b) => grouped[a].ms - grouped[b].ms);
-            let labels = sortedKeys.map(k => grouped[k].label);
-            let dataValues = sortedKeys.map(k => grouped[k].delta);
-            currentFilteredData = sortedKeys.map(k => grouped[k]);
-            if (chartHistorico) chartHistorico.destroy();
-            chartHistorico = new Chart(document.getElementById('chart-historico').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{ label: 'Consumo Medidor (kWh)', data: dataValues, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.2 }]
-                },
-                options: { 
-                    maintainAspectRatio: false,
-                    onClick: (e, activeElements) => {
-                        if (activeElements.length > 0) {
-                            const idx = activeElements[0].index;
-                            renderDetail(currentFilteredData[idx].originalRecords, currentFilteredData[idx].label, currentFilteredData[idx].delta);
-                        }
-                    }
-                }
-            });
-            if (currentFilteredData.length > 0) {
-                const last = currentFilteredData[currentFilteredData.length - 1];
-                renderDetail(last.originalRecords, last.label, last.delta);
-            } else {
-                document.getElementById('card-desglose').style.display = 'none';
-            }
+          }
         }
+      });
 
-        function renderDetail(records, labelTitle, totalDelta) {
-            document.getElementById('card-desglose').style.display = 'block';
-            document.getElementById('titulo-desglose').innerText = `Desglose: ${labelTitle}`;
-            
-            let merged = {};
-            records.forEach(r => {
-                let des = r.desglose || {};
-                for (let id in des) {
-                    if (!merged[id]) merged[id] = { nombre: des[id].nombre, tipo: des[id].tipo, tiempo: 0, unidad: des[id].unidad || '-', consumo: 0 };
-                    merged[id].consumo += parseFloat(des[id].consumo) || 0;
-                    if (des[id].tiempo && merged[id].unidad === des[id].unidad) merged[id].tiempo += parseFloat(des[id].tiempo) || 0;
-                }
-            });
-            
-            // Separar aparatos reales de la desviación
-            let aparatosArr = [];
-            let desviacionTotal = 0;
-            for (let id in merged) {
-                if (id === 'desviacion') {
-                    desviacionTotal += merged[id].consumo;
-                } else {
-                    aparatosArr.push(merged[id]);
-                }
-            }
-            aparatosArr.sort((a,b) => b.consumo - a.consumo);
-            
-            let totalEstimado = aparatosArr.reduce((s, d) => s + d.consumo, 0);
-            
-            // Barra resumen: Medidor vs Estimado
-            let sumContainer = document.getElementById('summary-container');
-            let pct = totalEstimado > 0 ? ((totalDelta / totalEstimado) * 100).toFixed(0) : '-';
-            let diffLabel = desviacionTotal >= 0 ? 'No Identificado' : 'Ahorro vs Estimado';
-            let diffColor = desviacionTotal >= 0 ? '#e67e22' : '#27ae60';
-            sumContainer.innerHTML = `
-                <div class="summary-bar">
-                    <div>Medidor<br><span class="val">${totalDelta.toFixed(2)}</span><br>kWh</div>
-                    <div>Estimado<br><span class="val">${totalEstimado.toFixed(2)}</span><br>kWh</div>
-                    <div>Diferencia<br><span class="val" style="color:${diffColor}">${desviacionTotal.toFixed(2)}</span><br>kWh</div>
-                </div>
-            `;
+    } catch (err) {
+      console.error('[renderCharts] Error general:', err);
+    }
+  }
 
-            // Gráfica de pastel: solo aparatos con consumo > 0
-            let positiveArr = aparatosArr.filter(d => d.consumo > 0);
-            if (chartDesglose) chartDesglose.destroy();
-            chartDesglose = new Chart(document.getElementById('chart-desglose').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: positiveArr.map(d => d.nombre),
-                    datasets: [{ 
-                        data: positiveArr.map(d => d.consumo), 
-                        backgroundColor: ['#e74c3c','#8e44ad','#3498db','#e67e22','#2ecc71','#f1c40f','#1abc9c','#d35400','#2980b9','#c0392b'] 
-                    }]
-                },
-                options: { maintainAspectRatio: false }
-            });
-            
-            // Tabla: todos los aparatos + fila de desviación
-            const tbody = document.getElementById('tabla-desglose-body');
-            tbody.innerHTML = '';
-            aparatosArr.forEach(d => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${d.nombre}</strong></td>
-                        <td>${d.tipo}</td>
-                        <td>${d.tiempo > 0 ? d.tiempo.toFixed(1) + ' ' + d.unidad : '-'}</td>
-                        <td><strong>${d.consumo.toFixed(2)}</strong></td>
-                    </tr>`;
-            });
-            // Fila de desviación del medidor
-            if (Math.abs(desviacionTotal) > 0.01) {
-                let rowColor = desviacionTotal >= 0 ? '#e67e22' : '#27ae60';
-                tbody.innerHTML += `
-                    <tr class="row-ajuste">
-                        <td><strong>${desviacionTotal >= 0 ? '⚡ Consumo No Identificado' : '✅ Ahorro vs Estimado'}</strong></td>
-                        <td>Ajuste</td>
-                        <td>-</td>
-                        <td style="color:${rowColor};"><strong>${desviacionTotal.toFixed(2)}</strong></td>
-                    </tr>`;
-            }
-            // Fila total del medidor
-            tbody.innerHTML += `
-                <tr style="background:#34495e;">
-                    <td colspan="3" style="color:white;"><strong>TOTAL MEDIDOR</strong></td>
-                    <td style="color:white;"><strong>${totalDelta.toFixed(2)}</strong></td>
-                </tr>`;
-        }
+  // ============================================================
+  //  PROYECCIÓN
+  // ============================================================
+  function calcularCostoPorBloques(kwh, bloques) {
+    let costo = 0;
+    let restante = kwh;
+    let limiteAnterior = 0;
+    for (const b of bloques) {
+      if (restante <= 0) break;
+      const capacidad = (b.limite === Infinity ? Infinity : b.limite) - limiteAnterior;
+      const enBloque = Math.min(restante, capacidad);
+      costo += enBloque * b.precio;
+      restante -= enBloque;
+      if (b.limite !== Infinity) limiteAnterior = b.limite;
+    }
+    return costo;
+  }
 
-        function renderFicha() {
-            const list = document.getElementById('aparatos-list');
-            list.innerHTML = '';
-            aparatos.forEach(a => {
-                let badgeColor = a.tipo === 'Ocasional' ? '#e67e22' : '#3498db';
-                list.innerHTML += `
-                    <div class="card">
-                        <div style="margin-bottom:10px;">
-                            <strong style="font-size:18px;">${a.nombre}</strong> 
-                            <span style="background:${badgeColor}; color:white; padding:2px 8px; border-radius:12px; font-size:12px; margin-left:8px;">${a.tipo}</span>
-                            <br><span style="color:#666;">${a.vatios}W | ${a.horasPromedio}h prom. diario</span>
-                        </div>
-                        <div class="flex-row">
-                            <button class="btn secondary" onclick='editAparato(${JSON.stringify(a)})'>Editar</button>
-                            <button class="btn danger" onclick="deleteAparato('${a.id}')">Eliminar</button>
-                        </div>
-                    </div>`;
-            });
-        }
+  function renderProjection() {
+    const elTotal    = document.getElementById('projTotal');
+    const elKwh      = document.getElementById('projKwh');
+    const elEnergia  = document.getElementById('projEnergia');
+    const elCargo    = document.getElementById('projCargoFijo');
+    const elPromedio = document.getElementById('projPromedio');
+    const elProgress = document.getElementById('projProgress');
+    const elNote     = document.getElementById('projProgressNote');
 
-        function showAparatoForm() {
-            document.getElementById('form-title').innerText = 'Nuevo Aparato';
-            document.getElementById('aparato-id').value = 'AP-' + Date.now();
-            document.getElementById('aparato-nombre').value = '';
-            document.getElementById('aparato-vatios').value = '';
-            document.getElementById('aparato-tipo').value = 'Fijo';
-            document.getElementById('aparato-horasMax').value = '';
-            document.getElementById('aparato-form').classList.remove('hidden');
-            document.getElementById('aparato-form').scrollIntoView();
-        }
+    if (allRecords.length === 0) {
+      elTotal.textContent = 'RD$ --';
+      elKwh.textContent = '-- kWh';
+      elEnergia.textContent = 'RD$ --';
+      elCargo.textContent = 'RD$ ' + config.cargoFijo.toFixed(2);
+      elPromedio.textContent = '-- kWh/día';
+      elProgress.style.width = '0%';
+      elNote.textContent = '⚠️ No se pudieron cargar lecturas del servidor.';
+      return;
+    }
 
-        function editAparato(a) {
-            document.getElementById('form-title').innerText = 'Editar Aparato';
-            document.getElementById('aparato-id').value = a.id;
-            document.getElementById('aparato-nombre').value = a.nombre;
-            document.getElementById('aparato-vatios').value = a.vatios;
-            document.getElementById('aparato-tipo').value = a.tipo || 'Fijo';
-            document.getElementById('aparato-horasMax').value = a.horasPromedio;
-            document.getElementById('aparato-form').classList.remove('hidden');
-            document.getElementById('aparato-form').scrollIntoView();
-        }
+    if (allRecords.length < 2) {
+      elTotal.textContent = 'RD$ --';
+      elKwh.textContent = '-- kWh';
+      elEnergia.textContent = 'RD$ --';
+      elCargo.textContent = 'RD$ ' + config.cargoFijo.toFixed(2);
+      elPromedio.textContent = '-- kWh/día';
+      elProgress.style.width = '0%';
+      elNote.textContent = 'Se necesita al menos 2 lecturas para proyectar.';
+      return;
+    }
 
-        function hideAparatoForm() { document.getElementById('aparato-form').classList.add('hidden'); }
+    const sorted = [...allRecords].sort((a, b) => {
+      const ta = new Date(a.timestamp).getTime() || 0;
+      const tb = new Date(b.timestamp).getTime() || 0;
+      return ta - tb;
+    });
 
-        async function saveAparato() {
-            const nombre = document.getElementById('aparato-nombre').value;
-            const vatios = document.getElementById('aparato-vatios').value;
-            const tipo = document.getElementById('aparato-tipo').value;
-            const horasMax = document.getElementById('aparato-horasMax').value;
-            if (!nombre || !vatios || !horasMax) return alert("Completa todos los campos");
-            await apiCall('saveAparato', 'POST', {
-                aparato: { id: document.getElementById('aparato-id').value, nombre, vatios: parseFloat(vatios), tipo, horasPromedio: parseFloat(horasMax) }
-            });
-            hideAparatoForm();
-            await loadData();
-            renderFicha();
-        }
+    const first = new Date(sorted[0].timestamp);
+    const last  = new Date(sorted[sorted.length - 1].timestamp);
+    let dias = (last - first) / 86400000;
+    if (!isFinite(dias) || dias < 1) dias = 1;
 
-        async function deleteAparato(id) {
-            if (confirm("¿Eliminar este aparato?")) {
-                await apiCall('deleteAparato', 'POST', { id });
-                await loadData();
-                renderFicha();
-            }
-        }
+    const consumoTotal = sorted.reduce((s, r) => s + (Number(r.totalConsumption) || 0), 0);
+    const promedioDiario = consumoTotal / dias;
+    const proyectado = promedioDiario * config.diasCiclo;
 
-        function resetWizard() {
-            document.getElementById('step1').classList.remove('hidden');
-            document.getElementById('step2').classList.add('hidden');
-            document.getElementById('wizard-lectura').value = '';
-            document.getElementById('wizard-casa-sola').checked = false;
-            
-            // Mostrar info de última lectura
-            const infoDiv = document.getElementById('wizard-info');
-            if (historial.length > 0) {
-                const last = historial[historial.length - 1];
-                const lastDate = new Date(last.fecha);
-                const diffMs = Date.now() - lastDate.getTime();
-                const diffDays = (diffMs / (1000 * 60 * 60 * 24)).toFixed(1);
-                const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
-                infoDiv.innerHTML = `📊 <strong>Última lectura:</strong> ${parseFloat(last.lectura).toFixed(2)} kWh<br>📅 <strong>Fecha:</strong> ${lastDate.toLocaleString('es-ES')}<br>⏱️ <strong>Tiempo transcurrido:</strong> ${diffDays} días (${diffHours} horas)`;
-                infoDiv.style.display = 'block';
-            } else {
-                infoDiv.innerHTML = '📌 <strong>Primera lectura:</strong> Esta lectura establecerá la línea base. El cálculo de consumo comenzará a partir de la segunda lectura.';
-                infoDiv.style.display = 'block';
-            }
-        }
+    const costoEnergia = calcularCostoPorBloques(proyectado, config.bloques);
+    const total = costoEnergia + config.cargoFijo;
 
-        function wizardStep2() {
-            const lectura = document.getElementById('wizard-lectura').value;
-            if (!lectura) return alert("Ingresa la lectura actual");
-            
-            // Primera lectura: solo guardar línea base
-            if (historial.length === 0) {
-                if (confirm(`¿Registrar ${lectura} kWh como lectura inicial (línea base)?`)) {
-                    apiCall('saveLectura', 'POST', { lectura: parseFloat(lectura), delta: 0, casaSola: false, desglose: {} })
-                        .then(() => loadData())
-                        .then(() => { showView('dashboard'); alert('Lectura inicial guardada. A partir de la próxima se calculará el consumo.'); });
-                }
-                return;
-            }
-            
-            const lastLectura = parseFloat(historial[historial.length - 1].lectura);
-            if (parseFloat(lectura) < lastLectura) return alert(`La lectura no puede ser menor a la anterior (${lastLectura.toFixed(2)})`);
-            
-            const delta = parseFloat(lectura) - lastLectura;
-            if (delta === 0) return alert("La lectura es idéntica a la anterior. No hay consumo que registrar.");
-            
-            const casaSola = document.getElementById('wizard-casa-sola').checked;
-            
-            document.getElementById('step1').classList.add('hidden');
-            document.getElementById('step2').classList.remove('hidden');
-            
-            const lastDate = new Date(historial[historial.length - 1].fecha);
-            const diffMs = Date.now() - lastDate.getTime();
-            const diffDays = (diffMs / (1000 * 60 * 60 * 24)).toFixed(1);
-            
-            document.getElementById('step2-title').innerText = casaSola ? 'Paso 2: Aparatos Fijos Activos' : 'Paso 2: Aparatos Ocasionales';
-            document.getElementById('step2-desc').innerText = casaSola 
-                ? `Lapso: ${diffDays} días | Delta: ${delta.toFixed(2)} kWh — Desmarca los aparatos fijos que desconectaste.` 
-                : `Lapso: ${diffDays} días | Delta: ${delta.toFixed(2)} kWh — Ingresa el tiempo TOTAL de uso desde la última lectura.`;
-            
-            const container = document.getElementById('wizard-aparatos');
-            container.innerHTML = '';
-            
-            if (casaSola) {
-                const fijos = aparatos.filter(a => a.tipo === 'Fijo');
-                if (fijos.length === 0) {
-                    container.innerHTML = '<p style="color:#666;">No hay aparatos fijos registrados. Pulsa Guardar.</p>';
-                    return;
-                }
-                fijos.forEach(a => {
-                    container.innerHTML += `
-                        <div style="background:#fff; border:1px solid #eee; padding:14px; border-radius:8px; margin-bottom:10px;" class="flex-row">
-                            <label for="chk-${a.id}" style="font-size:16px; margin:0;">${a.nombre} <span style="color:#888;font-weight:normal;">(${a.vatios}W)</span></label>
-                            <input type="checkbox" id="chk-${a.id}" class="wizard-fijo-chk" value="${a.id}" checked style="width:24px;height:24px;">
-                        </div>`;
-                });
-            } else {
-                const ocasionales = aparatos.filter(a => a.tipo === 'Ocasional');
-                if (ocasionales.length === 0) {
-                    container.innerHTML = '<p style="color:#666;">No hay aparatos ocasionales registrados. Pulsa Guardar.</p>';
-                    return;
-                }
-                ocasionales.forEach(a => {
-                    container.innerHTML += `
-                        <div style="background:#fff; border:1px solid #eee; padding:12px; border-radius:8px; margin-bottom:10px;">
-                            <div class="flex-row">
-                                <label for="chk-${a.id}" style="font-size:16px; margin:0;">${a.nombre} <span style="color:#888;font-weight:normal;">(${a.vatios}W)</span></label>
-                                <input type="checkbox" id="chk-${a.id}" class="wizard-oca-chk" value="${a.id}" onchange="document.getElementById('cfg-${a.id}').style.display = this.checked ? 'flex' : 'none'" style="width:24px;height:24px;">
-                            </div>
-                            <div id="cfg-${a.id}" class="flex-row" style="margin-top:12px; display:none;">
-                                <input type="number" id="time-${a.id}" placeholder="Tiempo Total" style="width:58%; margin:0;">
-                                <select id="unit-${a.id}" style="width:38%; margin:0;">
-                                    <option value="Horas">Horas</option>
-                                    <option value="Minutos">Minutos</option>
-                                </select>
-                            </div>
-                        </div>`;
-                });
-            }
-        }
+    elTotal.innerHTML      = `<small>RD$</small>${total.toFixed(2)}`;
+    elKwh.textContent      = proyectado.toFixed(1) + ' kWh';
+    elEnergia.textContent  = 'RD$ ' + costoEnergia.toFixed(2);
+    elCargo.textContent    = 'RD$ ' + config.cargoFijo.toFixed(2);
+    elPromedio.textContent = promedioDiario.toFixed(2) + ' kWh/día';
 
-        // =============================================================
-        // FUNCIÓN CORREGIDA: Cálculo directo de kWh por aparato
-        // Cada aparato calcula su consumo con la fórmula directa:
-        //   kWh = Vatios × Horas / 1000
-        // La diferencia con el medidor se muestra como "Desviación".
-        // =============================================================
-        async function finishWizard() {
-            const lectura = parseFloat(document.getElementById('wizard-lectura').value);
-            const casaSola = document.getElementById('wizard-casa-sola').checked;
-            
-            const lastRec = historial[historial.length - 1];
-            const lastLectura = parseFloat(lastRec.lectura);
-            const ms = Date.now() - new Date(lastRec.fecha).getTime();
-            const elapsedDays = Math.max(ms / (1000 * 60 * 60 * 24), 0.01);
-            
-            const delta = lectura - lastLectura;
-            let desglose = {};
-            let totalEstimado = 0;
-            
-            if (casaSola) {
-                // =============================================
-                // RUTA B: Casa Deshabitada
-                // Solo aparatos Fijos activos (marcados).
-                // Cada uno calcula su consumo DIRECTO.
-                // =============================================
-                let activeFijosIds = Array.from(document.querySelectorAll('.wizard-fijo-chk:checked')).map(cb => cb.value);
-                let fijos = aparatos.filter(a => a.tipo === 'Fijo' && activeFijosIds.includes(a.id));
-                
-                fijos.forEach(a => {
-                    let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
-                    let kwh = (parseFloat(a.vatios) * totalTime) / 1000;
-                    totalEstimado += kwh;
-                    desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
-                });
-                
-            } else {
-                // =============================================
-                // RUTA A: Casa Habitada
-                // Ocasionales: cálculo directo con tiempo total
-                //   ingresado por el usuario.
-                // Fijos: cálculo directo con perfil × días.
-                // =============================================
-                
-                // 1. Aparatos Ocasionales (tiempo total absoluto del usuario)
-                let activeOcaIds = Array.from(document.querySelectorAll('.wizard-oca-chk:checked')).map(cb => cb.value);
-                activeOcaIds.forEach(id => {
-                    const a = aparatos.find(ap => ap.id === id);
-                    const time = parseFloat(document.getElementById(`time-${id}`).value || 0);
-                    const unit = document.getElementById(`unit-${id}`).value;
-                    const totalH = unit === 'Minutos' ? time / 60 : time;
-                    const kwh = (parseFloat(a.vatios) * totalH) / 1000;
-                    totalEstimado += kwh;
-                    desglose[a.id] = { nombre: a.nombre, tipo: 'Ocasional', tiempo: totalH, unidad: 'h', consumo: kwh };
-                });
-                
-                // 2. Aparatos Fijos (cálculo directo: Vatios × HorasPromedio × Días / 1000)
-                let fijos = aparatos.filter(a => a.tipo === 'Fijo');
-                fijos.forEach(a => {
-                    let totalTime = parseFloat(a.horasPromedio) * elapsedDays;
-                    let kwh = (parseFloat(a.vatios) * totalTime) / 1000;
-                    totalEstimado += kwh;
-                    desglose[a.id] = { nombre: a.nombre, tipo: 'Fijo', tiempo: totalTime, unidad: 'h', consumo: kwh };
-                });
-            }
-            
-            // 3. Desviación = lo que dice el medidor vs lo que calculamos
-            let desviacion = delta - totalEstimado;
-            if (Math.abs(desviacion) > 0.01) {
-                desglose['desviacion'] = {
-                    nombre: desviacion > 0 ? 'Consumo No Identificado' : 'Ahorro vs Estimado',
-                    tipo: 'Ajuste',
-                    tiempo: 0,
-                    unidad: '-',
-                    consumo: desviacion
-                };
-            }
-            
-            await apiCall('saveLectura', 'POST', { lectura, delta, casaSola, desglose });
-            await loadData();
-            showView('dashboard');
-        }
-    </script>
+    const pct = Math.min(100, (consumoTotal / proyectado) * 100);
+    elProgress.style.width = pct.toFixed(1) + '%';
+
+    const b = config.bloques;
+    if (b[0] && proyectado <= b[0].limite) {
+      elNote.textContent = `Dentro del Bloque 1 (hasta ${b[0].limite} kWh).`;
+    } else if (b[1] && proyectado <= b[1].limite) {
+      elNote.textContent = `Proyectado en Bloque 2 (hasta ${b[1].limite} kWh).`;
+    } else if (b[2] && proyectado <= b[2].limite) {
+      elNote.textContent = `Proyectado en Bloque 3 (hasta ${b[2].limite} kWh).`;
+    } else {
+      elNote.textContent = `Proyectado en Bloque 4 (excedente).`;
+    }
+  }
+  </script>
 </body>
 </html>
