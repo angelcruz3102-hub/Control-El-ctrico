@@ -93,11 +93,56 @@
       opacity: 0.85;
     }
 
+    /* ============ SELECTOR DE PERÍODO ============ */
+    .period-selector {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      background: #e8edf3;
+      border-radius: 12px;
+      padding: 5px;
+      margin-bottom: 14px;
+    }
+    .period-btn {
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 4px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #5a6b7d;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .period-btn:active { opacity: 0.7; }
+    .period-btn.active {
+      background: #fff;
+      color: #4A90E2;
+      box-shadow: 0 2px 6px rgba(74,144,226,0.2);
+    }
+
+    .chart-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #556;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .chart-subtitle {
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: #99a;
+    }
+
     /* ============ GRÁFICAS ============ */
     .chart-container {
       background: #fff;
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       margin-bottom: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
@@ -105,6 +150,12 @@
       width: 100% !important;
       height: auto !important;
       max-height: 240px;
+    }
+    .empty-chart {
+      text-align: center;
+      padding: 40px 16px;
+      color: #999;
+      font-size: 0.85rem;
     }
 
     /* ============ BOTONES ============ */
@@ -306,11 +357,29 @@
       <div class="progress-note" id="projProgressNote">Sin datos suficientes</div>
     </div>
 
+    <!-- Selector de período -->
+    <div class="period-selector" id="periodSelector">
+      <button class="period-btn active" data-periodo="diario">Diario</button>
+      <button class="period-btn" data-periodo="semanal">Semanal</button>
+      <button class="period-btn" data-periodo="mensual">Mensual</button>
+      <button class="period-btn" data-periodo="historico">Histórico</button>
+    </div>
+
     <div class="chart-container">
+      <div class="chart-title">
+        <span>📈 Consumo en el tiempo</span>
+        <span class="chart-subtitle" id="lineRangeLabel">Últimos 14 días</span>
+      </div>
       <canvas id="lineChart"></canvas>
+      <div class="empty-chart" id="lineEmpty" style="display:none;">Sin datos en este período</div>
     </div>
     <div class="chart-container">
+      <div class="chart-title">
+        <span>🥧 Distribución por aparato</span>
+        <span class="chart-subtitle" id="pieRangeLabel">Últimos 14 días</span>
+      </div>
       <canvas id="pieChart"></canvas>
+      <div class="empty-chart" id="pieEmpty" style="display:none;">Sin datos en este período</div>
     </div>
 
     <button id="btnNuevaLectura" class="fab" aria-label="Nueva lectura">+</button>
@@ -339,7 +408,7 @@
     <ul id="applianceList"></ul>
   </div>
 
-  <!-- ==================== WIZARD (2 PASOS) ==================== -->
+  <!-- ==================== WIZARD ==================== -->
   <div id="wizard" class="view">
     <header>
       <button id="btnCancelWizard" class="back-btn">←</button>
@@ -347,7 +416,6 @@
       <span></span>
     </header>
 
-    <!-- PASO 1 -->
     <div id="step1" class="step active">
       <h2>Paso 1 · Lectura del contador</h2>
       <p id="prevReadingText" class="muted">Lectura anterior: --</p>
@@ -355,7 +423,6 @@
       <button id="btnNext1" class="next-btn">Siguiente →</button>
     </div>
 
-    <!-- PASO 2 (ahora guarda directamente) -->
     <div id="step2" class="step">
       <h2>Paso 2 · Aparatos activos</h2>
       <div class="info-box">
@@ -398,6 +465,9 @@
 
   let lineChart = null;
   let pieChart = null;
+
+  // Período activo del dashboard
+  let periodoActual = 'diario';   // 'diario' | 'semanal' | 'mensual' | 'historico'
 
   // ============================================================
   //  INICIALIZACIÓN
@@ -457,6 +527,16 @@
     document.getElementById('btnNext1').addEventListener('click', step1Next);
     document.getElementById('btnBack2').addEventListener('click', () => showStep(1));
     document.getElementById('btnNext2').addEventListener('click', guardarDesdeStep2);
+
+    // Selector de período
+    document.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        periodoActual = btn.dataset.periodo;
+        renderCharts();
+      });
+    });
   }
 
   // ============================================================
@@ -541,7 +621,7 @@
   }
 
   // ============================================================
-  //  WIZARD — PASO 1 (Lectura del contador)
+  //  WIZARD — PASO 1
   // ============================================================
   async function startWizard() {
     selectedAppliances = [];
@@ -553,7 +633,6 @@
     const checklist = document.getElementById('applianceChecklist');
     if (checklist) checklist.innerHTML = '';
 
-    // Última lectura conocida
     prevReading = allRecords.length > 0
       ? Number(allRecords[allRecords.length - 1].reading) || 0
       : 0;
@@ -583,7 +662,7 @@
   }
 
   // ============================================================
-  //  WIZARD — PASO 2 (Checklist dinámico)
+  //  WIZARD — PASO 2
   // ============================================================
   function renderChecklist() {
     const container = document.getElementById('applianceChecklist');
@@ -610,12 +689,7 @@
     });
   }
 
-  // ============================================================
-  //  WIZARD — GUARDADO DIRECTO DESDE PASO 2
-  //  Se usan automáticamente las horasPromedio de cada aparato.
-  // ============================================================
   function guardarDesdeStep2() {
-    // 1) Construir la lista de aparatos activos (Fijos + Ocasionales marcados)
     selectedAppliances = [];
 
     appliances.forEach(app => {
@@ -632,13 +706,11 @@
       return;
     }
 
-    // 2) Guardar directamente
     saveReading();
   }
 
   // ============================================================
-  //  CÁLCULO PROPORCIONAL Y GUARDADO (sin input de horas)
-  //  ⚠️ FIX CORS: POST sin headers 'application/json'.
+  //  CÁLCULO PROPORCIONAL Y GUARDADO
   // ============================================================
   function saveReading() {
     if (!selectedAppliances || selectedAppliances.length === 0) {
@@ -656,7 +728,6 @@
       return;
     }
 
-    // 1) Estimado teórico usando SIEMPRE app.horasPromedio
     const items = selectedAppliances.map(app => {
       const horas = Number(app.horasPromedio) || 1;
       const teorico = (app.watts / 1000) * horas;
@@ -665,7 +736,6 @@
 
     const teoricoTotal = items.reduce((s, i) => s + i.teorico, 0);
 
-    // 2) Distribución proporcional
     let distribucion = items.map(i => {
       const consumo = teoricoTotal > 0
         ? (i.teorico / teoricoTotal) * consumoReal
@@ -673,14 +743,12 @@
       return { ...i, consumoReal: consumo };
     });
 
-    // 3) Normalización final (cuadre exacto con el medidor)
     const sumaDist = distribucion.reduce((s, d) => s + d.consumoReal, 0);
     if (sumaDist > 0) {
       const factor = consumoReal / sumaDist;
       distribucion.forEach(d => d.consumoReal *= factor);
     }
 
-    // 4) Payload
     const record = {
       timestamp: new Date().toISOString(),
       reading:   Number(readingValue.toFixed(3)),
@@ -697,7 +765,6 @@
       }))
     };
 
-    // 5) POST al backend sin headers (evita preflight CORS que GAS no soporta)
     fetch(API_URL, {
       method: 'POST',
       redirect: 'follow',
@@ -942,49 +1009,125 @@
   }
 
   // ============================================================
-  //  SERIE DIARIA
+  //  FILTRADO POR PERÍODO
   // ============================================================
-  function buildDailySeries(records) {
+  function filtrarPorPeriodo(records, periodo) {
     const valid = (records || [])
       .filter(r => r && r.timestamp)
       .map(r => ({
         ts: new Date(r.timestamp).getTime(),
-        tc: Number(r.totalConsumption) || 0
+        raw: r
       }))
       .filter(r => isFinite(r.ts))
       .sort((a, b) => a.ts - b.ts);
 
-    if (valid.length === 0) return { labels: [], data: [] };
+    if (valid.length === 0) return [];
 
-    const byDay = new Map();
-    valid.forEach(r => {
-      const d = new Date(r.ts);
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      const dd = d.getDate();
-      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    const ultimoTs = valid[valid.length - 1].ts;
+    let desdeTs = 0;
+    let label = '';
 
-      if (!byDay.has(key)) {
-        byDay.set(key, {
-          dateObj: new Date(y, m, dd),
-          firstTs: r.ts,
-          lastTs: r.ts,
+    switch (periodo) {
+      case 'diario': {
+        desdeTs = ultimoTs - 14 * 86400000;
+        label = 'Últimos 14 días';
+        break;
+      }
+      case 'semanal': {
+        desdeTs = ultimoTs - 12 * 7 * 86400000;
+        label = 'Últimas 12 semanas';
+        break;
+      }
+      case 'mensual': {
+        desdeTs = ultimoTs - 12 * 30 * 86400000;
+        label = 'Últimos 12 meses';
+        break;
+      }
+      case 'historico': {
+        desdeTs = 0;
+        label = 'Todo el histórico';
+        break;
+      }
+      default: {
+        desdeTs = ultimoTs - 14 * 86400000;
+        label = 'Últimos 14 días';
+      }
+    }
+
+    const filtrados = valid.filter(r => r.ts >= desdeTs);
+    return { registros: filtrados.map(r => r.raw), label };
+  }
+
+  // ============================================================
+  //  UTILIDADES DE AGRUPACIÓN
+  // ============================================================
+  function getWeekKey(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return { key: `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`, dateObj: new Date(d) };
+  }
+
+  function getMonthKey(date) {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    return { key, dateObj: new Date(date.getFullYear(), date.getMonth(), 1) };
+  }
+
+  function getDayKey(date) {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return { key, dateObj: new Date(date.getFullYear(), date.getMonth(), date.getDate()) };
+  }
+
+  // ============================================================
+  //  CONSTRUIR SERIE SEGÚN EL PERÍODO
+  //  - Diario: agrupa por día → kWh/día
+  //  - Semanal: agrupa por semana ISO → kWh/día promedio
+  //  - Mensual / Histórico: agrupa por mes → kWh/día promedio
+  // ============================================================
+  function buildSeriesPorPeriodo(registros, periodo) {
+    if (!registros || registros.length === 0) {
+      return { labels: [], data: [] };
+    }
+
+    // Elegir función de agrupación
+    let keyFn;
+    if (periodo === 'diario') keyFn = getDayKey;
+    else if (periodo === 'semanal') keyFn = getWeekKey;
+    else keyFn = getMonthKey;   // mensual + histórico → mes
+
+    // Agrupar
+    const byGroup = new Map();
+
+    registros.forEach(r => {
+      const d = new Date(r.timestamp);
+      if (isNaN(d.getTime())) return;
+      const { key, dateObj } = keyFn(d);
+      const tc = Number(r.totalConsumption) || 0;
+
+      if (!byGroup.has(key)) {
+        byGroup.set(key, {
+          dateObj,
+          firstTs: d.getTime(),
+          lastTs: d.getTime(),
           sum: 0
         });
       }
-      const b = byDay.get(key);
-      b.sum += r.tc;
-      if (r.ts < b.firstTs) b.firstTs = r.ts;
-      if (r.ts > b.lastTs)  b.lastTs  = r.ts;
+      const b = byGroup.get(key);
+      b.sum += tc;
+      if (d.getTime() < b.firstTs) b.firstTs = d.getTime();
+      if (d.getTime() > b.lastTs)  b.lastTs  = d.getTime();
     });
 
-    const days = Array.from(byDay.values()).sort((a, b) => a.dateObj - b.dateObj);
+    const groups = Array.from(byGroup.values()).sort((a, b) => a.dateObj - b.dateObj);
 
+    // Calcular tasa por grupo
     const labels = [];
     const data = [];
     let prevLastTs = null;
 
-    days.forEach(bucket => {
+    groups.forEach(bucket => {
       let daysElapsed;
 
       if (prevLastTs === null) {
@@ -998,7 +1141,17 @@
 
       const rate = bucket.sum / daysElapsed;
 
-      labels.push(bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' }));
+      // Formato de label según período
+      let labelTxt;
+      if (periodo === 'diario') {
+        labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+      } else if (periodo === 'semanal') {
+        labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+      } else {
+        labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
+      }
+
+      labels.push(labelTxt);
       data.push(Number(rate.toFixed(3)));
 
       prevLastTs = bucket.lastTs;
@@ -1008,22 +1161,72 @@
   }
 
   // ============================================================
-  //  GRÁFICAS
+  //  ACUMULAR APARATOS DEL PERÍODO (para el pastel)
+  // ============================================================
+  function acumularAparatosPorPeriodo(registros) {
+    const acumulado = new Map();   // name → kWh acumulado
+
+    (registros || []).forEach(r => {
+      const norm = extraerAparatos(r && r.appliances);
+      norm.forEach(a => {
+        if (!a || !isFinite(a.consumoKwh)) return;
+        if (a.consumoKwh <= 0) return;    // filtramos negativos/ajustes
+        const key = a.name || 'Sin nombre';
+        acumulado.set(key, (acumulado.get(key) || 0) + a.consumoKwh);
+      });
+    });
+
+    const labels = [];
+    const data = [];
+    Array.from(acumulado.entries())
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([name, kwh]) => {
+        if (kwh <= 0) return;
+        labels.push(name);
+        data.push(Number(kwh.toFixed(3)));
+      });
+
+    return { labels, data };
+  }
+
+  // ============================================================
+  //  GRÁFICAS (filtradas por período)
   // ============================================================
   function renderCharts() {
     try {
       if (lineChart) { lineChart.destroy(); lineChart = null; }
       if (pieChart)  { pieChart.destroy();  pieChart  = null; }
 
+      // 1) Filtrar registros por período
+      const filtro = filtrarPorPeriodo(allRecords, periodoActual);
+      const registros = filtro.registros;
+
+      // Actualizar labels de rango
+      const lineRangeLabel = document.getElementById('lineRangeLabel');
+      const pieRangeLabel  = document.getElementById('pieRangeLabel');
+      if (lineRangeLabel) lineRangeLabel.textContent = filtro.label;
+      if (pieRangeLabel)  pieRangeLabel.textContent  = filtro.label;
+
+      // 2) Línea
       const lineCtx = document.getElementById('lineChart').getContext('2d');
-      const serie = buildDailySeries(allRecords);
+      const serie = buildSeriesPorPeriodo(registros, periodoActual);
+
+      const lineEmpty = document.getElementById('lineEmpty');
+      const lineCanvasWrap = document.getElementById('lineChart');
+      if (serie.labels.length === 0) {
+        if (lineEmpty) lineEmpty.style.display = 'block';
+        if (lineCanvasWrap) lineCanvasWrap.style.display = 'none';
+      } else {
+        if (lineEmpty) lineEmpty.style.display = 'none';
+        if (lineCanvasWrap) lineCanvasWrap.style.display = 'block';
+      }
 
       lineChart = new Chart(lineCtx, {
         type: 'line',
         data: {
           labels: serie.labels,
           datasets: [{
-            label: 'Consumo diario (kWh/día)',
+            label: 'Consumo (kWh/día)',
             data: serie.data,
             borderColor: '#4A90E2',
             backgroundColor: 'rgba(74,144,226,0.15)',
@@ -1053,31 +1256,30 @@
         }
       });
 
+      // 3) Pastel (acumulado del período)
       const pieCtx = document.getElementById('pieChart').getContext('2d');
-      let pieLabels = [];
-      let pieData = [];
+      const acum = acumularAparatosPorPeriodo(registros);
 
-      try {
-        if (allRecords.length > 0) {
-          const last = allRecords[allRecords.length - 1];
-          const norm = extraerAparatos(last && last.appliances);
-          const validos = norm.filter(a => a && a.consumoKwh > 0);
-          pieLabels = validos.map(a => a.name);
-          pieData   = validos.map(a => Number(a.consumoKwh.toFixed(3)));
-        }
-      } catch (err) {
-        console.error('[renderCharts → pastel] Error:', err);
+      const pieEmpty = document.getElementById('pieEmpty');
+      const pieCanvasWrap = document.getElementById('pieChart');
+      if (acum.labels.length === 0) {
+        if (pieEmpty) pieEmpty.style.display = 'block';
+        if (pieCanvasWrap) pieCanvasWrap.style.display = 'none';
+      } else {
+        if (pieEmpty) pieEmpty.style.display = 'none';
+        if (pieCanvasWrap) pieCanvasWrap.style.display = 'block';
       }
 
       pieChart = new Chart(pieCtx, {
         type: 'pie',
         data: {
-          labels: pieLabels.length ? pieLabels : ['Sin datos'],
+          labels: acum.labels.length ? acum.labels : ['Sin datos'],
           datasets: [{
-            data: pieData.length ? pieData : [1],
+            data: acum.data.length ? acum.data : [1],
             backgroundColor: [
               '#4A90E2','#50E3C2','#F5A623','#D0021B','#B8E986',
-              '#8B572A','#417505','#9B9B9B','#9013FE','#FF6900'
+              '#8B572A','#417505','#9B9B9B','#9013FE','#FF6900',
+              '#00A8CC','#FF5C8A','#7ED321','#BD10E0'
             ]
           }]
         },
@@ -1090,7 +1292,9 @@
               callbacks: {
                 label: function(ctx) {
                   const v = Number(ctx.parsed) || 0;
-                  return `${ctx.label}: ${v.toFixed(2)} kWh`;
+                  const total = acum.data.reduce((s, x) => s + x, 0);
+                  const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0';
+                  return `${ctx.label}: ${v.toFixed(2)} kWh (${pct}%)`;
                 }
               }
             }
