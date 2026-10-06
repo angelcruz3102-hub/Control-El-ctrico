@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Control Eléctrico</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -34,6 +36,114 @@
     }
     h1 { font-size: 1.5rem; font-weight: 600; }
     h2 { font-size: 1.15rem; margin-bottom: 8px; color: #222; }
+
+    /* ============ OVERLAYS (LOADING / SAVING) ============ */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(245, 247, 250, 0.96);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+      text-align: center;
+    }
+    .overlay.visible { display: flex; }
+    .overlay.dark { background: rgba(20, 30, 45, 0.85); }
+    .overlay.dark .overlay-title { color: #fff; }
+    .overlay.dark .overlay-sub { color: rgba(255,255,255,0.75); }
+
+    .spinner {
+      width: 64px;
+      height: 64px;
+      border: 5px solid rgba(74, 144, 226, 0.18);
+      border-top-color: #4A90E2;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 20px;
+    }
+    .overlay.dark .spinner {
+      border: 5px solid rgba(255,255,255,0.18);
+      border-top-color: #fff;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .overlay-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #2a5d9c;
+      margin-bottom: 6px;
+    }
+    .overlay-sub {
+      font-size: 0.85rem;
+      color: #6b7c8f;
+      max-width: 280px;
+    }
+
+    /* Ícono de check para éxito */
+    .success-check {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #4CAF50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .success-check svg {
+      width: 40px;
+      height: 40px;
+      stroke: #fff;
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      stroke-dasharray: 40;
+      stroke-dashoffset: 40;
+      animation: drawCheck 0.4s ease 0.15s forwards;
+    }
+    @keyframes pop {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+    @keyframes drawCheck {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* Barra de progreso pulsante */
+    .loading-bar {
+      width: 180px;
+      height: 4px;
+      border-radius: 99px;
+      background: rgba(74,144,226,0.15);
+      overflow: hidden;
+      margin-top: 18px;
+      position: relative;
+    }
+    .loading-bar::after {
+      content: '';
+      position: absolute;
+      left: -40%;
+      top: 0;
+      height: 100%;
+      width: 40%;
+      background: #4A90E2;
+      border-radius: 99px;
+      animation: slide 1.2s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0% { left: -40%; }
+      100% { left: 100%; }
+    }
 
     /* ============ PROYECCIÓN ============ */
     .projection-card {
@@ -130,12 +240,39 @@
       margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
+      gap: 8px;
     }
     .chart-subtitle {
       font-size: 0.72rem;
       font-weight: 400;
       color: #99a;
+    }
+    .chart-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .reset-zoom-btn {
+      background: #eef4fb;
+      color: #4A90E2;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+    }
+    .reset-zoom-btn:active { opacity: 0.7; }
+    .reset-zoom-btn.visible { display: inline-block; }
+
+    .hint-box {
+      font-size: 0.7rem;
+      color: #99a;
+      text-align: center;
+      margin-top: 6px;
+      font-style: italic;
     }
 
     /* ============ GRÁFICAS ============ */
@@ -149,7 +286,8 @@
     canvas {
       width: 100% !important;
       height: auto !important;
-      max-height: 240px;
+      max-height: 260px;
+      touch-action: pan-y;
     }
     .empty-chart {
       text-align: center;
@@ -333,6 +471,26 @@
 </head>
 <body>
 
+  <!-- ==================== OVERLAY: CARGANDO INICIAL ==================== -->
+  <div id="loadingOverlay" class="overlay visible">
+    <div class="spinner"></div>
+    <div class="overlay-title">Cargando datos…</div>
+    <div class="overlay-sub">Conectando con tu base de datos</div>
+    <div class="loading-bar"></div>
+  </div>
+
+  <!-- ==================== OVERLAY: GUARDANDO ==================== -->
+  <div id="savingOverlay" class="overlay dark">
+    <div id="savingSpinner" class="spinner"></div>
+    <div id="savingSuccess" class="success-check" style="display:none;">
+      <svg viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    </div>
+    <div class="overlay-title" id="savingTitle">Guardando lectura…</div>
+    <div class="overlay-sub" id="savingSub">Enviando datos al servidor, espera un momento</div>
+  </div>
+
   <!-- ==================== DASHBOARD ==================== -->
   <div id="dashboard" class="view active">
     <header>
@@ -357,7 +515,6 @@
       <div class="progress-note" id="projProgressNote">Sin datos suficientes</div>
     </div>
 
-    <!-- Selector de período -->
     <div class="period-selector" id="periodSelector">
       <button class="period-btn active" data-periodo="diario">Diario</button>
       <button class="period-btn" data-periodo="semanal">Semanal</button>
@@ -368,15 +525,20 @@
     <div class="chart-container">
       <div class="chart-title">
         <span>📈 Consumo en el tiempo</span>
-        <span class="chart-subtitle" id="lineRangeLabel">Últimos 14 días</span>
+        <span class="chart-actions">
+          <span class="chart-subtitle" id="lineRangeLabel">Últimos 7 días</span>
+          <button class="reset-zoom-btn" id="btnResetZoomLine" title="Reiniciar vista">⟲ Reset</button>
+        </span>
       </div>
       <canvas id="lineChart"></canvas>
       <div class="empty-chart" id="lineEmpty" style="display:none;">Sin datos en este período</div>
+      <div class="hint-box" id="lineHint">✌️ Pellizca para hacer zoom · 👆 Arrastra para desplazar</div>
     </div>
+
     <div class="chart-container">
       <div class="chart-title">
         <span>🥧 Distribución por aparato</span>
-        <span class="chart-subtitle" id="pieRangeLabel">Últimos 14 días</span>
+        <span class="chart-subtitle" id="pieRangeLabel">Últimos 7 días</span>
       </div>
       <canvas id="pieChart"></canvas>
       <div class="empty-chart" id="pieEmpty" style="display:none;">Sin datos en este período</div>
@@ -466,20 +628,74 @@
   let lineChart = null;
   let pieChart = null;
 
-  // Período activo del dashboard
-  let periodoActual = 'diario';   // 'diario' | 'semanal' | 'mensual' | 'historico'
+  let periodoActual = 'diario';
+
+  // ============================================================
+  //  OVERLAYS: helpers
+  // ============================================================
+  function showLoading() {
+    const el = document.getElementById('loadingOverlay');
+    if (el) el.classList.add('visible');
+  }
+  function hideLoading() {
+    const el = document.getElementById('loadingOverlay');
+    if (el) el.classList.remove('visible');
+  }
+
+  function showSaving() {
+    const overlay   = document.getElementById('savingOverlay');
+    const spinner   = document.getElementById('savingSpinner');
+    const success   = document.getElementById('savingSuccess');
+    const title     = document.getElementById('savingTitle');
+    const sub       = document.getElementById('savingSub');
+
+    if (spinner) spinner.style.display = 'block';
+    if (success) success.style.display = 'none';
+    if (title)   title.textContent = 'Guardando lectura…';
+    if (sub)     sub.textContent   = 'Enviando datos al servidor, espera un momento';
+    if (overlay) overlay.classList.add('visible');
+  }
+
+  function showSavingSuccess() {
+    const spinner = document.getElementById('savingSpinner');
+    const success = document.getElementById('savingSuccess');
+    const title   = document.getElementById('savingTitle');
+    const sub     = document.getElementById('savingSub');
+
+    if (spinner) spinner.style.display = 'none';
+    if (success) success.style.display = 'flex';
+    if (title)   title.textContent = '¡Guardado!';
+    if (sub)     sub.textContent   = 'Redirigiendo al inicio…';
+  }
+
+  function hideSaving() {
+    const overlay = document.getElementById('savingOverlay');
+    if (overlay) overlay.classList.remove('visible');
+  }
 
   // ============================================================
   //  INICIALIZACIÓN
   // ============================================================
   document.addEventListener('DOMContentLoaded', async () => {
+    showLoading();
+
     loadAppliancesFromStorage();
     attachEventListeners();
-    await fetchBackendData();
-    autoImportarAparatosDesdeHistorial();
-    renderCharts();
-    renderProjection();
-    showView('dashboard');
+
+    try {
+      await fetchBackendData();
+      autoImportarAparatosDesdeHistorial();
+      renderCharts();
+      renderProjection();
+      showView('dashboard');
+    } catch (err) {
+      console.error('[init] Error:', err);
+    }
+
+    // Pequeña pausa para que el spinner no parpadee en conexiones rápidas
+    setTimeout(() => {
+      hideLoading();
+    }, 500);
   });
 
   // ============================================================
@@ -528,7 +744,6 @@
     document.getElementById('btnBack2').addEventListener('click', () => showStep(1));
     document.getElementById('btnNext2').addEventListener('click', guardarDesdeStep2);
 
-    // Selector de período
     document.querySelectorAll('.period-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
@@ -537,6 +752,16 @@
         renderCharts();
       });
     });
+
+    const resetBtn = document.getElementById('btnResetZoomLine');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (lineChart && typeof lineChart.resetZoom === 'function') {
+          lineChart.resetZoom();
+          resetBtn.classList.remove('visible');
+        }
+      });
+    }
   }
 
   // ============================================================
@@ -710,7 +935,7 @@
   }
 
   // ============================================================
-  //  CÁLCULO PROPORCIONAL Y GUARDADO
+  //  CÁLCULO PROPORCIONAL Y GUARDADO (con overlay)
   // ============================================================
   function saveReading() {
     if (!selectedAppliances || selectedAppliances.length === 0) {
@@ -765,6 +990,9 @@
       }))
     };
 
+    // Mostrar overlay de guardado
+    showSaving();
+
     fetch(API_URL, {
       method: 'POST',
       redirect: 'follow',
@@ -779,18 +1007,25 @@
         throw new Error('El servidor devolvió HTML en lugar de JSON');
       }
       if (data && data.success) {
-        alert('✓ Registro guardado correctamente');
         return fetchBackendData();
       }
       throw new Error(data && data.error ? data.error : 'Respuesta inesperada del servidor');
     })
     .then(() => {
+      // Pintar el check verde y actualizar el dashboard por detrás
+      showSavingSuccess();
       renderCharts();
       renderProjection();
-      showView('dashboard');
+
+      // Redirigir al dashboard después de un breve instante
+      setTimeout(() => {
+        showView('dashboard');
+        hideSaving();
+      }, 900);
     })
     .catch(err => {
       console.error('[saveReading] Error:', err);
+      hideSaving();
       alert('Error al guardar: ' + err.message);
     });
   }
@@ -1021,7 +1256,7 @@
       .filter(r => isFinite(r.ts))
       .sort((a, b) => a.ts - b.ts);
 
-    if (valid.length === 0) return [];
+    if (valid.length === 0) return { registros: [], label: '' };
 
     const ultimoTs = valid[valid.length - 1].ts;
     let desdeTs = 0;
@@ -1029,13 +1264,13 @@
 
     switch (periodo) {
       case 'diario': {
-        desdeTs = ultimoTs - 14 * 86400000;
-        label = 'Últimos 14 días';
+        desdeTs = ultimoTs - 7 * 86400000;
+        label = 'Últimos 7 días';
         break;
       }
       case 'semanal': {
-        desdeTs = ultimoTs - 12 * 7 * 86400000;
-        label = 'Últimas 12 semanas';
+        desdeTs = ultimoTs - 30 * 86400000;
+        label = 'Últimos 30 días';
         break;
       }
       case 'mensual': {
@@ -1049,8 +1284,8 @@
         break;
       }
       default: {
-        desdeTs = ultimoTs - 14 * 86400000;
-        label = 'Últimos 14 días';
+        desdeTs = ultimoTs - 7 * 86400000;
+        label = 'Últimos 7 días';
       }
     }
 
@@ -1080,24 +1315,18 @@
     return { key, dateObj: new Date(date.getFullYear(), date.getMonth(), date.getDate()) };
   }
 
-  // ============================================================
-  //  CONSTRUIR SERIE SEGÚN EL PERÍODO
-  //  - Diario: agrupa por día → kWh/día
-  //  - Semanal: agrupa por semana ISO → kWh/día promedio
-  //  - Mensual / Histórico: agrupa por mes → kWh/día promedio
-  // ============================================================
   function buildSeriesPorPeriodo(registros, periodo) {
     if (!registros || registros.length === 0) {
       return { labels: [], data: [] };
     }
 
-    // Elegir función de agrupación
     let keyFn;
-    if (periodo === 'diario') keyFn = getDayKey;
-    else if (periodo === 'semanal') keyFn = getWeekKey;
-    else keyFn = getMonthKey;   // mensual + histórico → mes
+    if (periodo === 'diario' || periodo === 'semanal') {
+      keyFn = getDayKey;
+    } else {
+      keyFn = getMonthKey;
+    }
 
-    // Agrupar
     const byGroup = new Map();
 
     registros.forEach(r => {
@@ -1122,7 +1351,6 @@
 
     const groups = Array.from(byGroup.values()).sort((a, b) => a.dateObj - b.dateObj);
 
-    // Calcular tasa por grupo
     const labels = [];
     const data = [];
     let prevLastTs = null;
@@ -1141,11 +1369,8 @@
 
       const rate = bucket.sum / daysElapsed;
 
-      // Formato de label según período
       let labelTxt;
-      if (periodo === 'diario') {
-        labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-      } else if (periodo === 'semanal') {
+      if (periodo === 'diario' || periodo === 'semanal') {
         labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
       } else {
         labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
@@ -1160,17 +1385,14 @@
     return { labels, data };
   }
 
-  // ============================================================
-  //  ACUMULAR APARATOS DEL PERÍODO (para el pastel)
-  // ============================================================
   function acumularAparatosPorPeriodo(registros) {
-    const acumulado = new Map();   // name → kWh acumulado
+    const acumulado = new Map();
 
     (registros || []).forEach(r => {
       const norm = extraerAparatos(r && r.appliances);
       norm.forEach(a => {
         if (!a || !isFinite(a.consumoKwh)) return;
-        if (a.consumoKwh <= 0) return;    // filtramos negativos/ajustes
+        if (a.consumoKwh <= 0) return;
         const key = a.name || 'Sin nombre';
         acumulado.set(key, (acumulado.get(key) || 0) + a.consumoKwh);
       });
@@ -1190,35 +1412,39 @@
   }
 
   // ============================================================
-  //  GRÁFICAS (filtradas por período)
+  //  GRÁFICAS
   // ============================================================
   function renderCharts() {
     try {
       if (lineChart) { lineChart.destroy(); lineChart = null; }
       if (pieChart)  { pieChart.destroy();  pieChart  = null; }
 
-      // 1) Filtrar registros por período
+      const resetBtn = document.getElementById('btnResetZoomLine');
+      if (resetBtn) resetBtn.classList.remove('visible');
+
       const filtro = filtrarPorPeriodo(allRecords, periodoActual);
       const registros = filtro.registros;
 
-      // Actualizar labels de rango
       const lineRangeLabel = document.getElementById('lineRangeLabel');
       const pieRangeLabel  = document.getElementById('pieRangeLabel');
       if (lineRangeLabel) lineRangeLabel.textContent = filtro.label;
       if (pieRangeLabel)  pieRangeLabel.textContent  = filtro.label;
 
-      // 2) Línea
       const lineCtx = document.getElementById('lineChart').getContext('2d');
       const serie = buildSeriesPorPeriodo(registros, periodoActual);
 
       const lineEmpty = document.getElementById('lineEmpty');
       const lineCanvasWrap = document.getElementById('lineChart');
+      const lineHint = document.getElementById('lineHint');
+
       if (serie.labels.length === 0) {
         if (lineEmpty) lineEmpty.style.display = 'block';
         if (lineCanvasWrap) lineCanvasWrap.style.display = 'none';
+        if (lineHint) lineHint.style.display = 'none';
       } else {
         if (lineEmpty) lineEmpty.style.display = 'none';
         if (lineCanvasWrap) lineCanvasWrap.style.display = 'block';
+        if (lineHint) lineHint.style.display = 'block';
       }
 
       lineChart = new Chart(lineCtx, {
@@ -1233,30 +1459,61 @@
             fill: true,
             tension: 0.3,
             pointRadius: 4,
-            pointBackgroundColor: '#4A90E2'
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#4A90E2',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
             tooltip: {
+              enabled: true,
               callbacks: {
                 label: function(ctx) {
                   const v = Number(ctx.parsed.y) || 0;
                   return `${v.toFixed(2)} kWh/día`;
                 }
               }
+            },
+            zoom: {
+              pan: {
+                enabled: true,
+                mode: 'x',
+                threshold: 5,
+                onPan: function() {
+                  if (resetBtn) resetBtn.classList.add('visible');
+                }
+              },
+              zoom: {
+                wheel: { enabled: false },
+                pinch: { enabled: true },
+                mode: 'x',
+                onZoom: function() {
+                  if (resetBtn) resetBtn.classList.add('visible');
+                }
+              },
+              limits: { x: { minRange: 2 } }
             }
           },
           scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'kWh/día' } }
+            y: { beginAtZero: true, title: { display: true, text: 'kWh/día' } },
+            x: {
+              ticks: {
+                maxRotation: 45,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 8
+              }
+            }
           }
         }
       });
 
-      // 3) Pastel (acumulado del período)
       const pieCtx = document.getElementById('pieChart').getContext('2d');
       const acum = acumularAparatosPorPeriodo(registros);
 
