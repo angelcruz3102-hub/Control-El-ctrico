@@ -87,7 +87,6 @@
       max-width: 280px;
     }
 
-    /* Ícono de check para éxito */
     .success-check {
       width: 72px;
       height: 72px;
@@ -119,7 +118,6 @@
       to { stroke-dashoffset: 0; }
     }
 
-    /* Barra de progreso pulsante */
     .loading-bar {
       width: 180px;
       height: 4px;
@@ -532,7 +530,7 @@
       </div>
       <canvas id="lineChart"></canvas>
       <div class="empty-chart" id="lineEmpty" style="display:none;">Sin datos en este período</div>
-      <div class="hint-box" id="lineHint">✌️ Pellizca para hacer zoom · 👆 Arrastra para desplazar</div>
+      <div class="hint-box" id="lineHint">✌️ Desliza para moverte entre los días</div>
     </div>
 
     <div class="chart-container">
@@ -692,7 +690,6 @@
       console.error('[init] Error:', err);
     }
 
-    // Pequeña pausa para que el spinner no parpadee en conexiones rápidas
     setTimeout(() => {
       hideLoading();
     }, 500);
@@ -758,6 +755,9 @@
       resetBtn.addEventListener('click', () => {
         if (lineChart && typeof lineChart.resetZoom === 'function') {
           lineChart.resetZoom();
+          if (periodoActual === 'diario') {
+            renderCharts();
+          }
           resetBtn.classList.remove('visible');
         }
       });
@@ -974,8 +974,15 @@
       distribucion.forEach(d => d.consumoReal *= factor);
     }
 
+    // ---------------------------------------------------------
+    // REQUISITO 1: Asignar la lectura de hoy al día de ayer
+    // ---------------------------------------------------------
+    const dAyer = new Date();
+    dAyer.setDate(dAyer.getDate() - 1); // Restar 1 día
+    dAyer.setHours(23, 59, 59, 999);    // Asegurar el final del día de ayer
+
     const record = {
-      timestamp: new Date().toISOString(),
+      timestamp: dAyer.toISOString(),
       reading:   Number(readingValue.toFixed(3)),
       totalConsumption: Number(consumoReal.toFixed(3)),
       appliances: distribucion.map(d => ({
@@ -990,7 +997,6 @@
       }))
     };
 
-    // Mostrar overlay de guardado
     showSaving();
 
     fetch(API_URL, {
@@ -1003,7 +1009,7 @@
       let data;
       try { data = JSON.parse(text); }
       catch (e) {
-        console.warn('[saveReading] Respuesta no JSON (primeros 300):', text.slice(0, 300));
+        console.warn('[saveReading] Respuesta no JSON:', text.slice(0, 300));
         throw new Error('El servidor devolvió HTML en lugar de JSON');
       }
       if (data && data.success) {
@@ -1012,12 +1018,10 @@
       throw new Error(data && data.error ? data.error : 'Respuesta inesperada del servidor');
     })
     .then(() => {
-      // Pintar el check verde y actualizar el dashboard por detrás
       showSavingSuccess();
       renderCharts();
       renderProjection();
 
-      // Redirigir al dashboard después de un breve instante
       setTimeout(() => {
         showView('dashboard');
         hideSaving();
@@ -1040,13 +1044,9 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
 
       const text = await res.text();
-      console.log('[DEBUG] Respuesta cruda (primeros 400 chars):', text.substring(0, 400));
-
       let data;
       try { data = JSON.parse(text); }
       catch (e) { throw new Error('La respuesta no es JSON válido'); }
-
-      console.log('[DEBUG] Data parseada:', data);
 
       if (Array.isArray(data)) {
         allRecords = data;
@@ -1064,18 +1064,10 @@
             }))
           };
         }
-      } else if (data && data.success === false) {
-        console.error('[BACKEND ERROR]', data.error, data.stack);
-        allRecords = [];
       } else {
-        console.warn('[DEBUG] Respuesta con formato desconocido:', data);
         allRecords = [];
       }
-
-      console.log('[DEBUG] allRecords.length =', allRecords.length);
-
     } catch (err) {
-      console.error('[fetchBackendData] Error:', err);
       allRecords = allRecords || [];
     }
   }
@@ -1142,8 +1134,6 @@
 
       appliances = imported;
       saveAppliancesToStorage();
-      console.log('[autoImport] Aparatos importados del historial:', appliances);
-
     } catch (err) {
       console.error('[autoImportarAparatosDesdeHistorial] Error:', err);
     }
@@ -1155,23 +1145,17 @@
   function extraerAparatos(rawAppliances) {
     try {
       if (!rawAppliances) return [];
-
       let data = rawAppliances;
-
       if (typeof data === 'string') {
         const trimmed = data.trim();
         if (!trimmed) return [];
         try { data = JSON.parse(trimmed); }
-        catch (e) {
-          console.warn('[extraerAparatos] JSON inválido:', trimmed.slice(0, 100));
-          return [];
-        }
+        catch (e) { return []; }
       }
 
       if (!data || typeof data !== 'object') return [];
 
       let items = [];
-
       if (Array.isArray(data)) {
         items = data.slice();
       } else {
@@ -1184,9 +1168,7 @@
       return items
         .map(normalizarAparato)
         .filter(a => a !== null && isFinite(a.consumoKwh) && a.consumoKwh !== 0);
-
     } catch (err) {
-      console.error('[extraerAparatos] Error inesperado:', err);
       return [];
     }
   }
@@ -1229,22 +1211,18 @@
       }
 
       return {
-        id: id,
-        name: nombre,
-        tipo: tipo,
-        watts: watts,
-        horas: horas || null,
-        consumoKwh: consumo
+        id: id, name: nombre, tipo: tipo, watts: watts,
+        horas: horas || null, consumoKwh: consumo
       };
-
     } catch (err) {
-      console.warn('[normalizarAparato] Error con item:', a, err);
       return null;
     }
   }
 
   // ============================================================
   //  FILTRADO POR PERÍODO
+  //  ⚡ MODIFICADO: Incluye un registro previo para evitar
+  //  que el primer día del gráfico quede en blanco.
   // ============================================================
   function filtrarPorPeriodo(records, periodo) {
     const valid = (records || [])
@@ -1263,48 +1241,43 @@
     let label = '';
 
     switch (periodo) {
-      case 'diario': {
-        desdeTs = ultimoTs - 7 * 86400000;
-        label = 'Últimos 7 días';
+      case 'diario':
+        desdeTs = ultimoTs - 30 * 86400000;
+        label = 'Desliza para ver más días';
         break;
-      }
-      case 'semanal': {
+      case 'semanal':
         desdeTs = ultimoTs - 30 * 86400000;
         label = 'Últimos 30 días';
         break;
-      }
-      case 'mensual': {
+      case 'mensual':
         desdeTs = ultimoTs - 12 * 30 * 86400000;
         label = 'Últimos 12 meses';
         break;
-      }
-      case 'historico': {
+      case 'historico':
         desdeTs = 0;
-        label = 'Todo el histórico';
+        label = 'Histórico Anual';
         break;
-      }
-      default: {
-        desdeTs = ultimoTs - 7 * 86400000;
-        label = 'Últimos 7 días';
-      }
+      default:
+        desdeTs = ultimoTs - 30 * 86400000;
+        label = 'Últimos 30 días';
     }
 
-    const filtrados = valid.filter(r => r.ts >= desdeTs);
+    // Incluir el registro inmediatamente anterior al corte para que la interpolación sea exacta
+    let startIndex = 0;
+    for (let i = 0; i < valid.length; i++) {
+      if (valid[i].ts >= desdeTs) {
+        startIndex = Math.max(0, i - 1);
+        break;
+      }
+    }
+    
+    const filtrados = valid.slice(startIndex);
     return { registros: filtrados.map(r => r.raw), label };
   }
 
   // ============================================================
   //  UTILIDADES DE AGRUPACIÓN
   // ============================================================
-  function getWeekKey(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return { key: `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`, dateObj: new Date(d) };
-  }
-
   function getMonthKey(date) {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     return { key, dateObj: new Date(date.getFullYear(), date.getMonth(), 1) };
@@ -1315,71 +1288,123 @@
     return { key, dateObj: new Date(date.getFullYear(), date.getMonth(), date.getDate()) };
   }
 
+  function getYearKey(date) {
+    const key = String(date.getFullYear());
+    return { key, dateObj: new Date(date.getFullYear(), 0, 1) };
+  }
+
+  // ============================================================
+  //  CONSTRUCCIÓN DE LA SERIE
+  //  ⚡ REESCRITO: Interpolación, asignación a ayer y 24h
+  // ============================================================
   function buildSeriesPorPeriodo(registros, periodo) {
     if (!registros || registros.length === 0) {
       return { labels: [], data: [] };
     }
 
-    let keyFn;
-    if (periodo === 'diario' || periodo === 'semanal') {
-      keyFn = getDayKey;
-    } else {
-      keyFn = getMonthKey;
+    const sorted = [...registros].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const dailyKwhMap = new Map();
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+
+      const pDate = new Date(prev.timestamp);
+      const cDate = new Date(curr.timestamp);
+
+      // Diferencia de tiempo en horas
+      const diffHours = (cDate - pDate) / (1000 * 60 * 60);
+      if (diffHours <= 0) continue;
+
+      const diffKwh = Number(curr.reading) - Number(prev.reading);
+
+      // REQUISITO: Normalización a 24 horas
+      const kwhPerDay = (diffKwh / diffHours) * 24;
+
+      // REQUISITO: Asignar al día de ayer
+      let loopDate = new Date(pDate);
+      loopDate.setHours(12, 0, 0, 0); // Usar mediodía para evitar problemas de horario de verano
+      
+      let endDate = new Date(cDate);
+      endDate.setHours(12, 0, 0, 0);
+      endDate.setDate(endDate.getDate() - 1); // Restar 1 día (ayer)
+
+      if (endDate < loopDate) {
+        // Si la lectura es el mismo día, todo el consumo va al día de ayer
+        const key = getDayKey(endDate).key;
+        dailyKwhMap.set(key, (dailyKwhMap.get(key) || 0) + diffKwh);
+      } else {
+        // REQUISITO: Relleno de días faltantes
+        let assignedKwh = 0;
+        let current = new Date(loopDate);
+
+        while (current <= endDate) {
+          const key = getDayKey(current).key;
+          
+          // Si es el último día del relleno, se le asigna el remanente exacto
+          // para que la sumatoria cuadre perfectamente con el medidor
+          let valueToAssign = kwhPerDay;
+          if (current.getTime() === endDate.getTime()) {
+            valueToAssign = diffKwh - assignedKwh;
+          }
+
+          dailyKwhMap.set(key, (dailyKwhMap.get(key) || 0) + valueToAssign);
+          assignedKwh += valueToAssign;
+
+          current.setDate(current.getDate() + 1);
+        }
+      }
     }
 
+    // Convertir el mapa de días a un array
+    const dailyArray = [];
+    for (const [key, kwh] of dailyKwhMap.entries()) {
+      const [y, m, d] = key.split('-');
+      dailyArray.push({ dateObj: new Date(y, m - 1, d), kwh });
+    }
+
+    // Agrupar según la pestaña (Diario/Semanal suman por día, Mensual/Histórico agrupan)
     const byGroup = new Map();
 
-    registros.forEach(r => {
-      const d = new Date(r.timestamp);
-      if (isNaN(d.getTime())) return;
-      const { key, dateObj } = keyFn(d);
-      const tc = Number(r.totalConsumption) || 0;
-
-      if (!byGroup.has(key)) {
+    if (periodo === 'diario' || periodo === 'semanal') {
+      dailyArray.forEach(item => {
+        const key = getDayKey(item.dateObj).key;
         byGroup.set(key, {
-          dateObj,
-          firstTs: d.getTime(),
-          lastTs: d.getTime(),
-          sum: 0
+          dateObj: item.dateObj,
+          sum: item.kwh
         });
-      }
-      const b = byGroup.get(key);
-      b.sum += tc;
-      if (d.getTime() < b.firstTs) b.firstTs = d.getTime();
-      if (d.getTime() > b.lastTs)  b.lastTs  = d.getTime();
-    });
+      });
+    } else if (periodo === 'mensual') {
+      dailyArray.forEach(item => {
+        const { key, dateObj } = getMonthKey(item.dateObj);
+        if (!byGroup.has(key)) byGroup.set(key, { dateObj, sum: 0 });
+        byGroup.get(key).sum += item.kwh;
+      });
+    } else {
+      dailyArray.forEach(item => {
+        const { key, dateObj } = getYearKey(item.dateObj);
+        if (!byGroup.has(key)) byGroup.set(key, { dateObj, sum: 0 });
+        byGroup.get(key).sum += item.kwh;
+      });
+    }
 
     const groups = Array.from(byGroup.values()).sort((a, b) => a.dateObj - b.dateObj);
 
     const labels = [];
     const data = [];
-    let prevLastTs = null;
 
     groups.forEach(bucket => {
-      let daysElapsed;
-
-      if (prevLastTs === null) {
-        const selfDelta = (bucket.lastTs - bucket.firstTs) / 86400000;
-        daysElapsed = (isFinite(selfDelta) && selfDelta > 0) ? selfDelta : 1;
-      } else {
-        const delta = (bucket.lastTs - prevLastTs) / 86400000;
-        daysElapsed = (isFinite(delta) && delta > 0) ? delta : 1;
-        if (daysElapsed < 1) daysElapsed = 1;
-      }
-
-      const rate = bucket.sum / daysElapsed;
-
       let labelTxt;
       if (periodo === 'diario' || periodo === 'semanal') {
         labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
-      } else {
+      } else if (periodo === 'mensual') {
         labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
+      } else {
+        labelTxt = bucket.dateObj.toLocaleDateString('es-DO', { year: 'numeric' });
       }
 
       labels.push(labelTxt);
-      data.push(Number(rate.toFixed(3)));
-
-      prevLastTs = bucket.lastTs;
+      data.push(Number(bucket.sum.toFixed(3)));
     });
 
     return { labels, data };
@@ -1430,29 +1455,60 @@
       if (lineRangeLabel) lineRangeLabel.textContent = filtro.label;
       if (pieRangeLabel)  pieRangeLabel.textContent  = filtro.label;
 
+      const lineHint = document.getElementById('lineHint');
+      if (periodoActual === 'diario') {
+        if (lineHint) lineHint.style.display = 'block';
+      } else {
+        if (lineHint) lineHint.style.display = 'none';
+      }
+
       const lineCtx = document.getElementById('lineChart').getContext('2d');
       const serie = buildSeriesPorPeriodo(registros, periodoActual);
 
       const lineEmpty = document.getElementById('lineEmpty');
       const lineCanvasWrap = document.getElementById('lineChart');
-      const lineHint = document.getElementById('lineHint');
 
       if (serie.labels.length === 0) {
         if (lineEmpty) lineEmpty.style.display = 'block';
         if (lineCanvasWrap) lineCanvasWrap.style.display = 'none';
-        if (lineHint) lineHint.style.display = 'none';
       } else {
         if (lineEmpty) lineEmpty.style.display = 'none';
         if (lineCanvasWrap) lineCanvasWrap.style.display = 'block';
-        if (lineHint) lineHint.style.display = 'block';
       }
+
+      let enablePan = false;
+      let enableZoom = false;
+      let initialMin = undefined;
+      let initialMax = undefined;
+
+      if (periodoActual === 'diario') {
+        const totalPuntos = serie.labels.length;
+        initialMin = totalPuntos > 7 ? totalPuntos - 7 : 0;
+        initialMax = totalPuntos > 0 ? totalPuntos - 1 : 6;
+        enablePan = true;
+        enableZoom = false;
+      } else if (periodoActual === 'semanal') {
+        initialMin = 0;
+        initialMax = serie.labels.length > 0 ? serie.labels.length - 1 : 0;
+        enablePan = true;
+        enableZoom = true;
+      } else {
+        initialMin = 0;
+        initialMax = serie.labels.length > 0 ? serie.labels.length - 1 : 0;
+        enablePan = true;
+        enableZoom = true;
+      }
+
+      let yAxisLabel = 'kWh/día';
+      if (periodoActual === 'mensual') yAxisLabel = 'kWh totales / mes';
+      if (periodoActual === 'historico') yAxisLabel = 'kWh totales / año';
 
       lineChart = new Chart(lineCtx, {
         type: 'line',
         data: {
           labels: serie.labels,
           datasets: [{
-            label: 'Consumo (kWh/día)',
+            label: 'Consumo',
             data: serie.data,
             borderColor: '#4A90E2',
             backgroundColor: 'rgba(74,144,226,0.15)',
@@ -1476,13 +1532,16 @@
               callbacks: {
                 label: function(ctx) {
                   const v = Number(ctx.parsed.y) || 0;
+                  if (periodoActual === 'mensual' || periodoActual === 'historico') {
+                    return `${v.toFixed(2)} kWh (Total)`;
+                  }
                   return `${v.toFixed(2)} kWh/día`;
                 }
               }
             },
             zoom: {
               pan: {
-                enabled: true,
+                enabled: enablePan,
                 mode: 'x',
                 threshold: 5,
                 onPan: function() {
@@ -1491,18 +1550,25 @@
               },
               zoom: {
                 wheel: { enabled: false },
-                pinch: { enabled: true },
+                pinch: { enabled: enableZoom },
                 mode: 'x',
                 onZoom: function() {
                   if (resetBtn) resetBtn.classList.add('visible');
                 }
               },
-              limits: { x: { minRange: 2 } }
+              limits: {
+                x: { minRange: periodoActual === 'diario' ? 7 : 2 }
+              }
             }
           },
           scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'kWh/día' } },
+            y: { 
+              beginAtZero: true, 
+              title: { display: true, text: yAxisLabel } 
+            },
             x: {
+              min: initialMin,
+              max: initialMax,
               ticks: {
                 maxRotation: 45,
                 minRotation: 0,
@@ -1514,6 +1580,7 @@
         }
       });
 
+      // ----- PASTEL -----
       const pieCtx = document.getElementById('pieChart').getContext('2d');
       const acum = acumularAparatosPorPeriodo(registros);
 
@@ -1653,4 +1720,4 @@
   }
   </script>
 </body>
-</html>
+  </html>
